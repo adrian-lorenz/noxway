@@ -37,6 +37,12 @@ func main() {
 	if _, err := os.Stat(".env"); err == nil {
 		godotenv.Load()
 	}
+	config := middleware.RateLimiterConfig{
+		Rate:   global.Config.Rate.Rate,
+		Burst:  global.Config.Rate.Burst,
+		Window: global.Config.Rate.Window,
+	}
+
 	//test service
 	PrefillServices()
 	// init Router
@@ -50,6 +56,7 @@ func main() {
 	}
 	router.Use(middleware.MetricsMiddleware())
 	router.Use(middleware.BannList())
+	router.Use(middleware.RateLimiterMiddleware(config))
 
 	router.Any("/*path", middleware.Latency(), routing)
 

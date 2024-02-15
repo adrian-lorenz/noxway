@@ -28,14 +28,14 @@ func BannList() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		ip := GetIP(c)                                             
-		result := binarySearchSubstring(global.Config.Bannlist, ip) 
+		ip := GetIP(c)
+		result := binarySearchSubstring(global.Config.Bannlist, ip)
 		if len(result) > 0 {
 			log.Errorln("Banned IP", ip)
-			c.AbortWithStatus(404) 
+			c.AbortWithStatus(404)
 			return
 		}
-		c.Next() 
+		c.Next()
 	}
 }
 
