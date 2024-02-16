@@ -44,6 +44,7 @@ type Logtable struct {
 	HeadersCount int
 	ResponseTime float32 
 	StatusCode int
+	
 	Created time.Time `gorm:"autoCreateTime"`
 	Message string 
 }

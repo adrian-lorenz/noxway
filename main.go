@@ -5,6 +5,7 @@ import (
 	"api-gateway/global"
 	"api-gateway/middleware"
 	"api-gateway/pservice"
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -100,7 +101,9 @@ func main() {
 
 func routing(c *gin.Context) {
 	var litem database.Logtable
-	defer safeLog(litem)
+	defer func() {
+		go safeLog(litem)
+	}()
 	host := c.Request.Host
 
 	// Security nicht erforderlich, da prefix
@@ -181,7 +184,7 @@ func routing(c *gin.Context) {
 		}
 		//Basic Enpoint Router
 		litem.EndPoint = service.BasicEndpoint.Endpoint
-		processRequest(c, service.BasicEndpoint.Endpoint, remainingPath, service.BasicEndpoint.HeaderReplace, service.BasicEndpoint.HeaderAdd)
+		processRequest(c, service.BasicEndpoint.Endpoint, remainingPath, service.BasicEndpoint.HeaderReplace, service.BasicEndpoint.HeaderAdd, &litem)
 
 	} else if len(service.Endpoints) > 0 {
 		var endpoint pservice.Endpoint
@@ -232,7 +235,7 @@ func routing(c *gin.Context) {
 		//SUB Enpoint Router
 		litem.HeaderRouting = true
 		litem.EndPoint = endpoint.Endpoint
-		processRequest(c, endpoint.Endpoint, remainingPath, endpoint.HeaderReplace, endpoint.HeaderAdd)
+		processRequest(c, endpoint.Endpoint, remainingPath, endpoint.HeaderReplace, endpoint.HeaderAdd, &litem)
 	} else {
 		log.Errorln("No endpoint found")
 		litem.Message = "No endpoint found"
@@ -287,7 +290,7 @@ func JWTCheck(c *gin.Context, jw pservice.JWTPreCheck) bool {
 }
 
 // processRequest sendet die HTTP-Anfrage und verarbeitet die Antwort
-func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerReplacements []pservice.HeaderReplace, headerAdds []pservice.Header) {
+/*func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerReplacements []pservice.HeaderReplace, headerAdds []pservice.Header, logItem *database.Logtable) {
 	// URL zusammenbauen
 	newURL, _ := url.Parse(baseEndpoint)
 	newURL.Path += "/" + remainingPath
@@ -301,6 +304,7 @@ func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerRe
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
+	logItem.StatusCode = resp.StatusCode
 	defer resp.Body.Close()
 
 	// Header verarbeiten
@@ -314,6 +318,67 @@ func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerRe
 		return
 	}
 	c.Writer.Write(body)
+
+}*/
+func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerReplacements []pservice.HeaderReplace, headerAdds []pservice.Header, logItem *database.Logtable) {
+	// URL zusammenbauen
+	newURL, _ := url.Parse(baseEndpoint)
+	newURL.Path += "/" + remainingPath
+	if c.Request.URL.RawQuery != "" {
+		newURL.RawQuery = c.Request.URL.RawQuery
+	}
+
+	// Request-Body für neue Anfrage vorbereiten (falls notwendig)
+	var requestBody io.Reader
+	if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut || c.Request.Method == http.MethodPatch {
+		bodyBytes, _ := io.ReadAll(c.Request.Body)
+		// Wichtig: Body für weiteren Gebrauch im aktuellen Kontext wiederherstellen
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		requestBody = bytes.NewBuffer(bodyBytes)
+	}
+
+	// Neuen HTTP-Request basierend auf der Methode des Original-Requests erstellen
+	req, err := http.NewRequest(c.Request.Method, newURL.String(), requestBody)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Original-Header kopieren oder modifizieren
+	copyHeaders(c.Request.Header, req.Header)
+
+	// Header ersetzen oder hinzufügen basierend auf headerReplacements und headerAdds
+
+	// HTTP-Request senden
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	logItem.StatusCode = resp.StatusCode
+	defer resp.Body.Close()
+
+	// Header verarbeiten
+	processResponseHeaders(c, resp, headerReplacements, headerAdds)
+
+	// Statuscode und Body an den Client weiterleiten
+	c.Status(resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.Writer.Write(body)
+}
+
+// Hilfsfunktion zum Kopieren von Headern
+func copyHeaders(src, dest http.Header) {
+	for key, values := range src {
+		for _, value := range values {
+			dest.Add(key, value)
+		}
+	}
 }
 
 // processResponseHeaders verarbeitet und ersetzt Header basierend auf den Konfigurationen
