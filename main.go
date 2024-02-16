@@ -125,7 +125,7 @@ func routing(c *gin.Context) {
 	log.Infoln("----------------------------------------------")
 	log.Infoln("Request from:", middleware.GetIP(c), "to:", pathParts[0])
 	log.Infoln("Method:", c.Request.Method, " Path:", "/"+remainingPath)
-	log.Infoln("RequestSize:", c.Request.ContentLength/1024, "KB") // Korrektur von 1042 zu 1024 für KB-Umrechnung
+	log.Infoln("RequestSize:", c.Request.ContentLength/1024, "KB") 
 	log.Infoln("Headers Count:", len(c.Request.Header))
 	log.Infoln("Request Host:", host)
 	log.Infoln("----------------------------------------------")
