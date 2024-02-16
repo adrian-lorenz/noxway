@@ -46,11 +46,8 @@ func GetIP(c *gin.Context) string {
 	if ip == "" {
 		ip = i2
 	}
-
 	host, _, err := net.SplitHostPort(ip)
 	if err != nil {
-		// Falls ein Fehler auftritt (was bedeuten könnte, dass es keinen Port gibt),
-		// geben Sie einfach die ursprüngliche IP zurück, da sie möglicherweise bereits ohne Port ist.
 		return ip
 	}
 	return host
@@ -60,7 +57,6 @@ func binarySearchSubstring(sliceStrings []string, substring string) []string {
 	index := sort.Search(len(sliceStrings), func(i int) bool {
 		return strings.Compare(sliceStrings[i], substring) >= 0
 	})
-
 	for i := index; i < len(sliceStrings); i++ {
 		if strings.Contains(sliceStrings[i], substring) {
 			matches = append(matches, sliceStrings[i])
@@ -68,6 +64,5 @@ func binarySearchSubstring(sliceStrings []string, substring string) []string {
 			break
 		}
 	}
-
 	return matches
 }

@@ -18,33 +18,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func PrefillServices() {
-	global.Services = append(global.Services, pservice.Service{
-		BasicEndpoint: pservice.Endpoint{
-			Endpoint:  os.Getenv("u1"),
-			VerifySSL: true,
-			Active:    true,
-			Name:      "default",
-		},
-		Endpoints: []pservice.Endpoint{},
-		Active:    true,
-		Name:      "bgm-gml",
-	})
-
-}
-
 func main() {
 	if _, err := os.Stat(".env"); err == nil {
 		godotenv.Load()
 	}
-	config := middleware.RateLimiterConfig{
+	global.LoadAllConfig() // thread safe
+	RateConfig := middleware.RateLimiterConfig{
 		Rate:   global.Config.Rate.Rate,
 		Burst:  global.Config.Rate.Burst,
 		Window: global.Config.Rate.Window,
 	}
 
-	//test service
-	PrefillServices()
 	// init Router
 	if !global.Config.Debug {
 		gin.SetMode(gin.ReleaseMode)
@@ -56,7 +40,7 @@ func main() {
 	}
 	router.Use(middleware.MetricsMiddleware())
 	router.Use(middleware.BannList())
-	router.Use(middleware.RateLimiterMiddleware(config))
+	router.Use(middleware.RateLimiterMiddleware(RateConfig))
 
 	router.Any("/*path", middleware.Latency(), routing)
 
@@ -84,6 +68,12 @@ func routing(c *gin.Context) {
 
 	fullPath := strings.TrimPrefix(c.Param("path"), "/")
 	pathParts := strings.Split(fullPath, "/")
+
+	if len(pathParts) == 0 {
+		log.Errorln("No path parts")
+		c.AbortWithStatus(404)
+		return
+	}
 	// Metrics
 	if pathParts[0] == global.Config.MetricPath && slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
 		middleware.AppMetrics.RLock()
@@ -98,14 +88,18 @@ func routing(c *gin.Context) {
 		return
 	}
 
-	if len(pathParts) == 0 {
-		log.Errorln("No path parts")
-		c.AbortWithStatus(404)
+	if pathParts[0] == "reload" && slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+		global.LoadAllConfig()
+		c.JSON(200, gin.H{
+			"message": "Config reloaded",
+		})
 		return
 	}
 
+	// Service suchen
+
 	var service pservice.Service
-	for _, s := range global.Services {
+	for _, s := range global.Services.Services {
 		if s.Name == pathParts[0] {
 			service = s
 			break

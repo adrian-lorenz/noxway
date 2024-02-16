@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"api-gateway/global"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -25,10 +27,14 @@ var mu sync.Mutex
 
 func RateLimiterMiddleware(config RateLimiterConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		ip := GetIP(c)
+		if slices.Contains(global.Config.RateWhitelist, ip) {
+			c.Next()
+			return
+		}
 		mu.Lock()
 		defer mu.Unlock()
 
-		ip := c.ClientIP()
 		counter, exists := rateLimiter[ip]
 		if !exists {
 			counter = &RequestCounter{}

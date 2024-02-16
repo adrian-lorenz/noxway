@@ -1,0 +1,20 @@
+{
+	"ssl": false,
+	"debug": true,
+	"excludedPaths": ["/favicon.ico", "/robots.txt", "/sitemap.xml", "/sitemap.xml.gz", "/", ""],
+	"port": "8080",
+	"sslPort": "443",
+	"cors": true,
+	"pemCrt": "/etc/letsencrypt/live/deine-domain.de/fullchain.pem",
+	"pemKey": "/etc/letsencrypt/live/deine-domain.de/privkey.pem",
+	"metricPath": "mdata",
+	"metricWhitelist": ["127.0.0.1"],
+	"bannlist": [],
+	"rate": {
+		"rate": 100,
+		"burst": 10,
+		"window": 3600000000000
+	},
+	"rateWhitelist": ["127.0.0.1"]
+
+}

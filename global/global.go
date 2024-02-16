@@ -1,48 +1,50 @@
 package global
 
 import (
+	"api-gateway/config"
 	"api-gateway/pservice"
+	"os"
+	"path/filepath"
+	"sync"
 
-	"time"
+	log "github.com/sirupsen/logrus"
 )
 
-var Services = []pservice.Service{}
-var Config = ConfigStruct{
-	SSL:             false,
-	Debug:           true,
-	ExcludedPaths:   []string{"/favicon.ico", "/robots.txt", "/sitemap.xml", "/sitemap.xml.gz", "/", ""},
-	Port:            "8080",
-	SSLPort:         "443",
-	Cors:            true,
-	PemCrt:          "/etc/letsencrypt/live/deine-domain.de/fullchain.pem",
-	PemKey:          "/etc/letsencrypt/live/deine-domain.de/privkey.pem",
-	MetricPath:      "mdata",
-	MetricWhitelist: []string{"127.0.0.1"},
-	Bannlist:        []string{},
-	Rate: Rates{
-		Rate:   100,
-		Burst:  10,
-		Window: 1 * time.Hour,
-	},
+var (
+	Services = pservice.Services{}
+	Config   = config.ConfigStruct{}
+	mu       sync.Mutex
+)
+
+func SetGlobConfig(newConfig config.ConfigStruct) {
+	mu.Lock() // Sperren vor der Aktualisierung
+	Config = newConfig
+	mu.Unlock() // Freigeben nach der Aktualisierung
 }
 
-type ConfigStruct struct {
-	SSL             bool
-	Debug           bool
-	ExcludedPaths   []string
-	Port            string
-	SSLPort         string
-	Cors            bool
-	PemCrt          string
-	PemKey          string
-	MetricPath      string
-	MetricWhitelist []string
-	Bannlist        []string
-	Rate            Rates
+func SetSrvConfig(newConfig pservice.Services) {
+	mu.Lock() // Sperren vor der Aktualisierung
+	Services = newConfig
+	mu.Unlock() // Freigeben nach der Aktualisierung
 }
 
-type Rates struct {
-	Rate   int
-	Burst  int
-	Window time.Duration
+func LoadAllConfig() {
+	path, err := os.Getwd()
+	if err != nil {
+		log.Errorln("Fehler beim Ermitteln des aktuellen Verzeichnisses:", err)
+		panic(err)
+	}
+	configStruct, err := config.LoadConfig(filepath.Join(path, "config", "config_global.json"))
+	if err != nil {
+		log.Errorln("Fehler beim Laden der Konfiguration:", err)
+		panic(err)
+	}
+	serviceStruct, err := pservice.LoadConfig(filepath.Join(path, "config", "config_service.json"))
+	if err != nil {
+		log.Errorln("Fehler beim Laden der Konfiguration:", err)
+		panic(err)
+	}
+	log.Infoln("Config loaded")
+	SetSrvConfig(*serviceStruct)
+	SetGlobConfig(*configStruct)
 }

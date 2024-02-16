@@ -1,0 +1,18 @@
+{
+    "Services": [
+      {
+        "Endpoints": [],
+        "BasicEndpoint": {
+          "Endpoint": "https://example.com/api",
+          "VerifySSL": true,
+          "Active": true,
+          "Name": "default",
+          "HeaderMatches": []
+        },
+        "Active": true,
+        "Name": "bgm-gml",
+        "HeaderReplace": []
+      }
+    ]
+  }
+  
