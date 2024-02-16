@@ -1,10 +1,10 @@
 package main
 
 import (
+	"api-gateway/database"
 	"api-gateway/global"
 	"api-gateway/middleware"
 	"api-gateway/pservice"
-	"api-gateway/database"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +16,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
 )
@@ -84,10 +85,7 @@ func main() {
 		} else {
 			c.AbortWithStatus(404)
 		}
-	}) 
-	
-
-
+	})
 
 	// API-Gateway starten
 	if global.Config.SSL {
@@ -101,47 +99,33 @@ func main() {
 }
 
 func routing(c *gin.Context) {
-
+	var litem database.Logtable
+	defer safeLog(litem)
 	host := c.Request.Host
 
 	// Security nicht erforderlich, da prefix
 	/*
-	if slices.Contains(global.Config.ExcludedPaths, c.Param("path")) {
-		log.Errorln("Excluded Path: " + c.Param("path"))
-		c.AbortWithStatus(404)
-		return
-	}*/
+		if slices.Contains(global.Config.ExcludedPaths, c.Param("path")) {
+			log.Errorln("Excluded Path: " + c.Param("path"))
+			c.AbortWithStatus(404)
+			return
+		}*/
 	//Prefix handling
 	trimmedPath := strings.TrimPrefix(c.Param("path"), global.Config.Prefix)
 	trimmedPath = strings.Trim(trimmedPath, "/")
 	pathParts := strings.Split(trimmedPath, "/")
 	remainingPath := strings.Join(pathParts[1:], "/")
-	
 
-	if len(pathParts) == 0 {
-		log.Errorln("No path parts")
-		c.AbortWithStatus(404)
-		return
-	}
-	
-	
-	// Service suchen
-
-	var service pservice.Service
-	for _, s := range global.Services.Services {
-		if s.Name == pathParts[0] {
-			service = s
-			break
-		}
-	}
-
-	if service.Name == "" || !service.Active {
-		log.Errorln("Service not found or not active")
-		c.AbortWithStatus(404)
-		return
-	}
-
-	
+	litem.Path = remainingPath
+	litem.Service = pathParts[0]
+	litem.ServiceExists = false
+	litem.Method = c.Request.Method
+	litem.RequestSize = int(c.Request.ContentLength) / 1024
+	litem.Host = host
+	litem.HeaderRouting = false
+	litem.IP = middleware.GetIP(c)
+	litem.HeadersCount = len(c.Request.Header)
+	litem.GUID = uuid.New().String()
 
 	log.Infoln("----------------------------------------------")
 	log.Infoln("Request from:", middleware.GetIP(c), "to:", pathParts[0])
@@ -151,10 +135,38 @@ func routing(c *gin.Context) {
 	log.Infoln("Request Host:", host)
 	log.Infoln("----------------------------------------------")
 
+	if len(pathParts) == 0 {
+		log.Errorln("No path parts")
+		litem.Message = "No path parts"
+		c.AbortWithStatus(404)
+		return
+	}
+
+	// Service suchen
+
+	var service pservice.Service
+	for _, s := range global.Services.Services {
+		if s.Name == pathParts[0] {
+			service = s
+			litem.ServiceExists = true
+			break
+		}
+	}
+
+	if service.Name == "" || !service.Active {
+		log.Errorln("Service not found or not active")
+		litem.Message = "Service not found or not active"
+		c.AbortWithStatus(404)
+		return
+	}
+
 	if service.BasicEndpoint.Active && len(service.Endpoints) == 0 {
+		//Basic Enpoint Precheck
+		litem.HeaderRouting = true
 		if service.BasicEndpoint.JWTPreCheck.Active {
 			if !JWTCheck(c, service.BasicEndpoint.JWTPreCheck) {
 				log.Errorln("JWT not valid")
+				litem.Message = "JWT not valid"
 				c.AbortWithStatus(404)
 				return
 			}
@@ -162,11 +174,13 @@ func routing(c *gin.Context) {
 		if len(service.BasicEndpoint.HeaderExists) > 0 {
 			if !headerExist(c, service.BasicEndpoint.HeaderExists) {
 				log.Errorln("Header not found")
+				litem.Message = "HeaderExist not found"
 				c.AbortWithStatus(404)
 				return
 			}
 		}
 		//Basic Enpoint Router
+		litem.EndPoint = service.BasicEndpoint.Endpoint
 		processRequest(c, service.BasicEndpoint.Endpoint, remainingPath, service.BasicEndpoint.HeaderReplace, service.BasicEndpoint.HeaderAdd)
 
 	} else if len(service.Endpoints) > 0 {
@@ -176,6 +190,7 @@ func routing(c *gin.Context) {
 				if e.JWTPreCheck.Active {
 					if !JWTCheck(c, e.JWTPreCheck) {
 						log.Errorln("JWT not valid")
+						litem.Message = "JWT not valid"
 						c.AbortWithStatus(404)
 						return
 					}
@@ -184,6 +199,8 @@ func routing(c *gin.Context) {
 				if len(e.HeaderExists) > 0 {
 					if !headerExist(c, e.HeaderExists) {
 						log.Errorln("Header not found")
+						litem.Message = "HeaderExist not found"
+
 						c.AbortWithStatus(404)
 						return
 					}
@@ -207,13 +224,26 @@ func routing(c *gin.Context) {
 
 		if endpoint.Name == "" || !endpoint.Active {
 			log.Errorln("Endpoint not found or not active")
+			litem.Message = "Endpoint not found or not active"
+
 			c.AbortWithStatus(404)
 			return
 		}
 		//SUB Enpoint Router
+		litem.HeaderRouting = true
+		litem.EndPoint = endpoint.Endpoint
 		processRequest(c, endpoint.Endpoint, remainingPath, endpoint.HeaderReplace, endpoint.HeaderAdd)
 	} else {
+		log.Errorln("No endpoint found")
+		litem.Message = "No endpoint found"
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Service not active"})
+	}
+}
+
+func safeLog(litem database.Logtable) {
+	err := database.DB.Create(&litem).Error
+	if err != nil {
+		log.Errorln("Error while logging:", err)
 	}
 }
 func headerExist(c *gin.Context, headerMatches []pservice.Header) bool {
