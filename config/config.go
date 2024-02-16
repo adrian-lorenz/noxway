@@ -16,6 +16,7 @@ type ConfigStruct struct {
 	RateLimiter     bool     `json:"rateLimiter"`
 	Bann            bool     `json:"bann"`
 	Metrics         bool     `json:"metric"`
+	Prefix         string     `json:"prefix"`
 	PemCrt          string   `json:"pemCrt"`
 	PemKey          string   `json:"pemKey"`
 	MetricPath      string   `json:"metricPath"`
@@ -27,7 +28,6 @@ type ConfigStruct struct {
 
 type Rates struct {
 	Rate   int           `json:"rate"`
-	Burst  int           `json:"burst"`
 	Window time.Duration `json:"window"`
 }
 

@@ -4,6 +4,7 @@ import (
 	"api-gateway/global"
 	"api-gateway/middleware"
 	"api-gateway/pservice"
+	"api-gateway/database"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,10 +27,14 @@ func main() {
 	global.LoadAllConfig() // thread safe
 	RateConfig := middleware.RateLimiterConfig{
 		Rate:   global.Config.Rate.Rate,
-		Burst:  global.Config.Rate.Burst,
 		Window: global.Config.Rate.Window,
 	}
-
+	//init Databases
+	dberr := database.ConnectDB(global.Path)
+	if dberr != nil {
+		log.Errorln("Fehler beim Verbinden zur Datenbank:", dberr)
+		panic(dberr)
+	}
 	// init Router
 	if !global.Config.Debug {
 		gin.SetMode(gin.ReleaseMode)
@@ -50,7 +55,39 @@ func main() {
 		router.Use(middleware.RateLimiterMiddleware(RateConfig))
 	}
 
-	router.Any("/*path", middleware.Latency(), routing)
+	router.Any(global.Config.Prefix+"*path", middleware.Latency(), routing)
+
+	router.GET("/reload", func(c *gin.Context) {
+		if slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+			global.LoadAllConfig()
+			c.JSON(200, gin.H{
+				"message": "Config reloaded",
+			})
+			return
+		} else {
+			c.AbortWithStatus(404)
+			return
+
+		}
+	})
+	router.GET(global.Config.MetricPath, func(c *gin.Context) {
+		if global.Config.Metrics && slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+			middleware.AppMetrics.RLock()
+			defer middleware.AppMetrics.RUnlock()
+			c.JSON(200, gin.H{
+				"total_requests":        middleware.AppMetrics.TotalRequests,
+				"average_request_size":  float64(middleware.AppMetrics.TotalRequestSize) / float64(middleware.AppMetrics.TotalRequests),
+				"average_response_size": float64(middleware.AppMetrics.TotalResponseSize) / float64(middleware.AppMetrics.TotalRequests),
+				"average_duration":      middleware.AppMetrics.TotalDuration.Seconds() / float64(middleware.AppMetrics.TotalRequests),
+			})
+			return
+		} else {
+			c.AbortWithStatus(404)
+		}
+	}) 
+	
+
+
 
 	// API-Gateway starten
 	if global.Config.SSL {
@@ -67,43 +104,27 @@ func routing(c *gin.Context) {
 
 	host := c.Request.Host
 
-	// Security
+	// Security nicht erforderlich, da prefix
+	/*
 	if slices.Contains(global.Config.ExcludedPaths, c.Param("path")) {
 		log.Errorln("Excluded Path: " + c.Param("path"))
 		c.AbortWithStatus(404)
 		return
-	}
-
-	fullPath := strings.TrimPrefix(c.Param("path"), "/")
-	pathParts := strings.Split(fullPath, "/")
+	}*/
+	//Prefix handling
+	trimmedPath := strings.TrimPrefix(c.Param("path"), global.Config.Prefix)
+	trimmedPath = strings.Trim(trimmedPath, "/")
+	pathParts := strings.Split(trimmedPath, "/")
+	remainingPath := strings.Join(pathParts[1:], "/")
+	
 
 	if len(pathParts) == 0 {
 		log.Errorln("No path parts")
 		c.AbortWithStatus(404)
 		return
 	}
-	// Metrics
-	if pathParts[0] == global.Config.MetricPath && global.Config.Metrics && slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
-		middleware.AppMetrics.RLock()
-		defer middleware.AppMetrics.RUnlock()
-
-		c.JSON(200, gin.H{
-			"total_requests":        middleware.AppMetrics.TotalRequests,
-			"average_request_size":  float64(middleware.AppMetrics.TotalRequestSize) / float64(middleware.AppMetrics.TotalRequests),
-			"average_response_size": float64(middleware.AppMetrics.TotalResponseSize) / float64(middleware.AppMetrics.TotalRequests),
-			"average_duration":      middleware.AppMetrics.TotalDuration.Seconds() / float64(middleware.AppMetrics.TotalRequests),
-		})
-		return
-	}
-
-	if pathParts[0] == "reload" && slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
-		global.LoadAllConfig()
-		c.JSON(200, gin.H{
-			"message": "Config reloaded",
-		})
-		return
-	}
-
+	
+	
 	// Service suchen
 
 	var service pservice.Service
@@ -120,12 +141,12 @@ func routing(c *gin.Context) {
 		return
 	}
 
-	remainingPath := strings.Join(pathParts[1:], "/")
+	
 
 	log.Infoln("----------------------------------------------")
 	log.Infoln("Request from:", middleware.GetIP(c), "to:", pathParts[0])
 	log.Infoln("Method:", c.Request.Method, " Path:", "/"+remainingPath)
-	log.Infoln("RequestSize:", c.Request.ContentLength/1024, "KB") 
+	log.Infoln("RequestSize:", c.Request.ContentLength/1024, "KB")
 	log.Infoln("Headers Count:", len(c.Request.Header))
 	log.Infoln("Request Host:", host)
 	log.Infoln("----------------------------------------------")
@@ -145,12 +166,13 @@ func routing(c *gin.Context) {
 				return
 			}
 		}
+		//Basic Enpoint Router
+		processRequest(c, service.BasicEndpoint.Endpoint, remainingPath, service.BasicEndpoint.HeaderReplace, service.BasicEndpoint.HeaderAdd)
 
-		processRequest(c, service.BasicEndpoint.Endpoint, remainingPath, service.HeaderReplace)
 	} else if len(service.Endpoints) > 0 {
 		var endpoint pservice.Endpoint
 		for _, e := range service.Endpoints {
-			if len(e.HeaderMatches) > 0 && e.Active {
+			if len(e.HeaderRouteMatches) > 0 && e.Active {
 				if e.JWTPreCheck.Active {
 					if !JWTCheck(c, e.JWTPreCheck) {
 						log.Errorln("JWT not valid")
@@ -167,7 +189,7 @@ func routing(c *gin.Context) {
 					}
 				}
 				matchFound := false
-				for _, h := range e.HeaderMatches {
+				for _, h := range e.HeaderRouteMatches {
 					if c.GetHeader(h.Header) == h.Value {
 						endpoint = e
 						matchFound = true
@@ -188,13 +210,13 @@ func routing(c *gin.Context) {
 			c.AbortWithStatus(404)
 			return
 		}
-
-		processRequest(c, endpoint.Endpoint, remainingPath, service.HeaderReplace)
+		//SUB Enpoint Router
+		processRequest(c, endpoint.Endpoint, remainingPath, endpoint.HeaderReplace, endpoint.HeaderAdd)
 	} else {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Service not active"})
 	}
 }
-func headerExist(c *gin.Context, headerMatches []pservice.HeaderExist) bool {
+func headerExist(c *gin.Context, headerMatches []pservice.Header) bool {
 	fmt.Println("HeaderExist", headerMatches[0].Header)
 	for _, h := range headerMatches {
 		if c.GetHeader(h.Header) == h.Value {
@@ -235,7 +257,7 @@ func JWTCheck(c *gin.Context, jw pservice.JWTPreCheck) bool {
 }
 
 // processRequest sendet die HTTP-Anfrage und verarbeitet die Antwort
-func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerReplacements []pservice.HeaderReplace) {
+func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerReplacements []pservice.HeaderReplace, headerAdds []pservice.Header) {
 	// URL zusammenbauen
 	newURL, _ := url.Parse(baseEndpoint)
 	newURL.Path += "/" + remainingPath
@@ -252,7 +274,7 @@ func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerRe
 	defer resp.Body.Close()
 
 	// Header verarbeiten
-	processResponseHeaders(c, resp, headerReplacements)
+	processResponseHeaders(c, resp, headerReplacements, headerAdds)
 
 	// Statuscode und Body an den Client weiterleiten
 	c.Status(resp.StatusCode)
@@ -265,7 +287,14 @@ func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerRe
 }
 
 // processResponseHeaders verarbeitet und ersetzt Header basierend auf den Konfigurationen
-func processResponseHeaders(c *gin.Context, resp *http.Response, headerReplacements []pservice.HeaderReplace) {
+func processResponseHeaders(c *gin.Context, resp *http.Response, headerReplacements []pservice.HeaderReplace, headerAdds []pservice.Header) {
+	//hinzufügen der Headers
+	if len(headerAdds) > 0 {
+		for _, h := range headerAdds {
+			c.Header(h.Header, h.Value)
+		}
+	}
+	// Ersetzen der Headers
 	replacementMap := make(map[string]string)
 	for _, hr := range headerReplacements {
 		replacementMap[hr.Header] = hr.NewValue

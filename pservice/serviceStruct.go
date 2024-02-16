@@ -14,7 +14,7 @@ type Service struct {
 	BasicEndpoint Endpoint
 	Active        bool
 	Name          string
-	HeaderReplace []HeaderReplace
+	
 }
 
 type Endpoint struct {
@@ -22,9 +22,11 @@ type Endpoint struct {
 	VerifySSL     bool
 	Active        bool
 	Name          string
-	HeaderMatches []HeaderMatch
-	HeaderExists  []HeaderExist
+	HeaderRouteMatches []Header
+	HeaderExists  []Header
+	HeaderAdd []Header
 	JWTPreCheck   JWTPreCheck
+	HeaderReplace []HeaderReplace
 }
 
 type JWTPreCheck struct {
@@ -36,15 +38,12 @@ type JWTPreCheck struct {
 	Match []string
 }
 
-type HeaderMatch struct {
+type Header struct {
 	Header string
 	Value  string
 }
 
-type HeaderExist struct {
-	Header string
-	Value  string
-}
+
 
 type HeaderReplace struct {
 	Header   string
