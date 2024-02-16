@@ -1,23 +1,22 @@
 package database
 
 import (
+	"api-gateway/global"
 	"errors"
-	"path/filepath"
+	"os"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
-	"gorm.io/driver/sqlite"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
 var DB *gorm.DB = nil
 
 func ConnectDB(rootpath string) error {
-	dbfile := filepath.Join(rootpath, "database", "database.db")
-	db, err := gorm.Open(sqlite.Open(dbfile), &gorm.Config{})
+	//dbfile := filepath.Join(rootpath, "database", "database.db")
+	db, err := gorm.Open(mysql.Open(os.Getenv("DATABASE")), &gorm.Config{})
 	if err != nil {
-		log.Error(err)
+		global.Log.Error(err)
 		return errors.New("can't connect to database")
 	}
 	errCre := db.AutoMigrate(&Logtable{})
@@ -30,21 +29,24 @@ func ConnectDB(rootpath string) error {
 }
 
 type Logtable struct {
-	ID      uint   `gorm:"primaryKey"`
-	GUID    string `gorm:"size:100"`
-	IP      string `gorm:"size:100"`
-	Path    string `gorm:"size:255"`
-	Service string `gorm:"size:100"`
+	ID            uint   `gorm:"primaryKey"`
+	GUID          string `gorm:"size:100"`
+	IP            string `gorm:"size:100"`
+	Path          string `gorm:"size:255"`
+	Service       string `gorm:"size:100"`
 	ServiceExists bool
 	HeaderRouting bool
-	EndPoint string `gorm:"size:255"`
-	Method  string `gorm:"size:100"`
-	RequestSize int 
-	Host	string `gorm:"size:100"`
-	HeadersCount int
-	ResponseTime float32 
-	StatusCode int
-	
-	Created time.Time `gorm:"autoCreateTime"`
-	Message string 
+	Routed        bool
+	EndPoint      string `gorm:"size:255"`
+	Method        string `gorm:"size:100"`
+	RequestSize   int
+	Host          string `gorm:"size:100"`
+	HeadersCount  int
+	ResponseTime  float32
+	StatusCode    int
+	Created       time.Time `gorm:"autoCreateTime"`
+	Message       string
+	TimePre       float32
+	TimePost      float32
+	TimeFull      float32
 }

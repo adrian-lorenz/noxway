@@ -15,8 +15,23 @@ var (
 	Config   = config.ConfigStruct{}
 	mu       sync.Mutex
 	Path	 string
+	Log 	*log.Logger
 )
-
+func InitLogger() {
+    Log = log.New()
+    Log.SetLevel(log.DebugLevel) // Setze das gewünschte Log-Level
+	/*
+    Log.SetFormatter(&log.TextFormatter{
+        FullTimestamp: true,
+    })
+    file, err := os.OpenFile("app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+    if err == nil {
+        Log.SetOutput(file)
+    } else {
+        Log.Warn("Failed to log to file, using default stderr")
+    }
+	*/
+}
 func SetGlobConfig(newConfig config.ConfigStruct) {
 	mu.Lock() // Sperren vor der Aktualisierung
 	Config = newConfig

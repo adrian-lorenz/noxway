@@ -5,22 +5,9 @@ import (
 	"net"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	log "github.com/sirupsen/logrus"
 )
-
-func Latency() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		t := time.Now()
-		c.Next()
-		// after request
-		latency := time.Since(t)
-		log.Infoln("ResTime", latency)
-
-	}
-}
 
 func BannList() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -31,7 +18,7 @@ func BannList() gin.HandlerFunc {
 		ip := GetIP(c)
 		result := binarySearchSubstring(global.Config.Bannlist, ip)
 		if len(result) > 0 {
-			log.Errorln("Banned IP", ip)
+			global.Log.Errorln("Banned IP", ip)
 			c.AbortWithStatus(404)
 			return
 		}
