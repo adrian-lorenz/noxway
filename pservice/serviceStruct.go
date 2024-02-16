@@ -23,9 +23,25 @@ type Endpoint struct {
 	Active        bool
 	Name          string
 	HeaderMatches []HeaderMatch
+	HeaderExists  []HeaderExist
+	JWTPreCheck   JWTPreCheck
+}
+
+type JWTPreCheck struct {
+	Active bool
+	Header string
+	Key   string
+	OnlySign bool
+	Field string
+	Match []string
 }
 
 type HeaderMatch struct {
+	Header string
+	Value  string
+}
+
+type HeaderExist struct {
 	Header string
 	Value  string
 }

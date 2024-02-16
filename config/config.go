@@ -13,6 +13,9 @@ type ConfigStruct struct {
 	Port            string   `json:"port"`
 	SSLPort         string   `json:"sslPort"`
 	Cors            bool     `json:"cors"`
+	RateLimiter     bool     `json:"rateLimiter"`
+	Bann            bool     `json:"bann"`
+	Metrics         bool     `json:"metric"`
 	PemCrt          string   `json:"pemCrt"`
 	PemKey          string   `json:"pemKey"`
 	MetricPath      string   `json:"metricPath"`

@@ -4,6 +4,7 @@ import (
 	"api-gateway/global"
 	"api-gateway/middleware"
 	"api-gateway/pservice"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -12,10 +13,10 @@ import (
 	"strings"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -35,12 +36,19 @@ func main() {
 	}
 	router := gin.Default()
 	router.SetTrustedProxies(nil)
+	// Middleware
 	if global.Config.Cors {
 		router.Use(cors.Default())
 	}
-	router.Use(middleware.MetricsMiddleware())
-	router.Use(middleware.BannList())
-	router.Use(middleware.RateLimiterMiddleware(RateConfig))
+	if global.Config.Metrics {
+		router.Use(middleware.MetricsMiddleware())
+	}
+	if global.Config.Bann {
+		router.Use(middleware.BannList())
+	}
+	if global.Config.RateLimiter {
+		router.Use(middleware.RateLimiterMiddleware(RateConfig))
+	}
 
 	router.Any("/*path", middleware.Latency(), routing)
 
@@ -75,7 +83,7 @@ func routing(c *gin.Context) {
 		return
 	}
 	// Metrics
-	if pathParts[0] == global.Config.MetricPath && slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+	if pathParts[0] == global.Config.MetricPath && global.Config.Metrics && slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
 		middleware.AppMetrics.RLock()
 		defer middleware.AppMetrics.RUnlock()
 
@@ -123,11 +131,41 @@ func routing(c *gin.Context) {
 	log.Infoln("----------------------------------------------")
 
 	if service.BasicEndpoint.Active && len(service.Endpoints) == 0 {
+		if service.BasicEndpoint.JWTPreCheck.Active {
+			if !JWTCheck(c, service.BasicEndpoint.JWTPreCheck) {
+				log.Errorln("JWT not valid")
+				c.AbortWithStatus(404)
+				return
+			}
+		}
+		if len(service.BasicEndpoint.HeaderExists) > 0 {
+			if !headerExist(c, service.BasicEndpoint.HeaderExists) {
+				log.Errorln("Header not found")
+				c.AbortWithStatus(404)
+				return
+			}
+		}
+
 		processRequest(c, service.BasicEndpoint.Endpoint, remainingPath, service.HeaderReplace)
 	} else if len(service.Endpoints) > 0 {
 		var endpoint pservice.Endpoint
 		for _, e := range service.Endpoints {
 			if len(e.HeaderMatches) > 0 && e.Active {
+				if e.JWTPreCheck.Active {
+					if !JWTCheck(c, e.JWTPreCheck) {
+						log.Errorln("JWT not valid")
+						c.AbortWithStatus(404)
+						return
+					}
+				}
+
+				if len(e.HeaderExists) > 0 {
+					if !headerExist(c, e.HeaderExists) {
+						log.Errorln("Header not found")
+						c.AbortWithStatus(404)
+						return
+					}
+				}
 				matchFound := false
 				for _, h := range e.HeaderMatches {
 					if c.GetHeader(h.Header) == h.Value {
@@ -155,6 +193,45 @@ func routing(c *gin.Context) {
 	} else {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Service not active"})
 	}
+}
+func headerExist(c *gin.Context, headerMatches []pservice.HeaderExist) bool {
+	fmt.Println("HeaderExist", headerMatches[0].Header)
+	for _, h := range headerMatches {
+		if c.GetHeader(h.Header) == h.Value {
+			return true
+		}
+	}
+	return false
+}
+
+func JWTCheck(c *gin.Context, jw pservice.JWTPreCheck) bool {
+	tokenString := c.GetHeader(jw.Header)
+	if tokenString == "" {
+		return false
+	}
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(jw.Key), nil
+	})
+
+	if err != nil || !token.Valid {
+		return false
+	}
+	if jw.OnlySign {
+		return true
+	}
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		for _, m := range jw.Match {
+			if val, ok := claims[jw.Field]; ok && val == m {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // processRequest sendet die HTTP-Anfrage und verarbeitet die Antwort

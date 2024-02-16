@@ -7,6 +7,11 @@
           "VerifySSL": true,
           "Active": true,
           "Name": "default",
+          "HeaderExists": [
+            {
+              "Header": "test","Value": "1234"
+            }
+          ],
           "HeaderMatches": []
         },
         "Active": true,
@@ -15,4 +20,3 @@
       }
     ]
   }
-  
