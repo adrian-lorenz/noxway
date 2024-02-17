@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NOXWAY</title>
+    <link rel="stylesheet" href="/static/css/materialize.css">
+    <link rel="stylesheet" href="/static/css/noxway.css">
+      <!-- <link rel="stylesheet" href="/static/css/noxway.css"> -->
+
+</head>
+<body>
+    <ul id="nav-mobile" class="sidenav sidenav-fixed">
+        <li><a href="/dashboard/stats">Dashboard</a></li>
+        <li><a href="/dashboard/config">Settings</a></li>
+        <li><a href="/dashboard/services">Endpoints</a></li>
+        <li><a href="/logout">Logout</a></li>
+        <!-- Weitere Links hier einfügen -->
+    </ul>
+<main>
+    <div class="container">
+        <div class="section">
+            {{.DynamicContent}} 
+        </div>
+    
+</div>
+</main>
+    <script src="/static/js/materialize.js"></script>
+</body>
+</html>

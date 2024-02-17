@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+
+{% block content %}
+
+   
+            <ul id="nav-mobile" class="sidenav sidenav-fixed">
+                <li><a href="/dashboard/stats">Dashboard</a></li>
+                <li><a href="/dashboard/config">Settings</a></li>
+                <li><a href="/dashboard/services">Endpoints</a></li>
+                <!-- Weitere Links hier einfügen -->
+            </ul>
+       <main>
+            <div class="container">
+                <div class="section">
+                    {% if subpath == "config" %}
+                    {% include 'config.html' %}
+                    {% elif subpath == "services" %}
+                    {% include 'services.html' %}
+                    {% else %}
+                    {% include 'flow.html' %}
+                    {% endif %}
+                </div>
+            
+        </div>
+    </main>
+
+{% endblock %}
