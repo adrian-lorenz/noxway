@@ -4,11 +4,27 @@ import (
 	"bytes"
 	"html/template"
 	"net/http"
+	"noxway-admin/fetcher"
 
 	log "github.com/sirupsen/logrus"
 )
-
+var (
+	Services *fetcher.Services
+	Config   *fetcher.ConfigStruct
+)
 func main() {
+	// Lade die Konfiguration
+	var err error
+	Config, err = fetcher.LoadConfig("../config/config_global.json")
+	if err != nil {
+		log.Fatalln("Error loading config:", err)
+	}
+	// Lade die Services
+	Services, err = fetcher.LoadConfigService("../config/config_service.json")
+	if err != nil {
+		log.Fatalln("Error loading services:", err)
+	}
+	// Starte den Webserver
 	tmpl := template.Must(template.ParseGlob("templates/*.html"))
 
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
@@ -87,9 +103,15 @@ func dashboardHandler(tmpl *template.Template) http.HandlerFunc {
 
 		path := r.URL.Path
 		var contentTemplate string
+		var daten map[string]interface{}= nil
 		switch path {
 		case "/dashboard/config":
 			contentTemplate = "config.html"
+			daten = map[string]interface{}{
+				"config": Config,
+			}
+			
+		
 		case "/dashboard/services":
 			contentTemplate = "services.html"
 		// Füge hier weitere Fälle für zusätzliche Inhalte hinzu
@@ -99,14 +121,15 @@ func dashboardHandler(tmpl *template.Template) http.HandlerFunc {
 
 		// Vorbereiten des Inhalts als String
 		var tmplContent bytes.Buffer
-		if err := tmpl.ExecuteTemplate(&tmplContent, contentTemplate, nil); err != nil {
+		if err := tmpl.ExecuteTemplate(&tmplContent, contentTemplate, daten); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		// Übergeben des Inhalts an das dashboard.html Template
 		data := map[string]interface{}{
-			"DynamicContent": template.HTML(tmplContent.String()), // Verwendung von template.HTML, um sicherzustellen, dass der HTML-Inhalt nicht automatisch escaped wird
+			"DynamicContent": template.HTML(tmplContent.String()),
+			"daten":Config ,
 		}
 		if err := tmpl.ExecuteTemplate(w, "dashboard.html", data); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

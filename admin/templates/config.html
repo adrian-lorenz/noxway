@@ -1,5 +1,125 @@
-
 <div>
-    <h2>Configuration</h2>
-    <p>Hier steht der Inhalt von Config.</p>
+    <div class="container">
+        <h4>Config Form</h4>
+        <form id="configForm" action="/submit" method="post">
+            <div class="row" style="margin-top: 30px; margin-bottom: 30px;">
+                <div class="col s12 m3">
+                    <label>
+                        <input type="checkbox" class="filled-in" name="ssl" {{if .config.SSL}}checked{{end}} />
+                        <span>SSL</span>
+                    </label>
+                </div>
+                <div class="col s12 m3">
+                    <label>
+                        <input type="checkbox" class="filled-in" name="debug" {{if .config.Debug}}checked{{end}} />
+                        <span>Debug</span>
+                    </label>
+
+                </div>
+                <div class="col s12 m3">
+                    <label>
+                        <input type="checkbox" class="filled-in" name="cors" {{if .config.Cors}}checked{{end}} />
+                        <span>Cors</span>
+                    </label>
+
+                </div>
+                <div class="col s12 m3">
+                    <label>
+                        <input type="checkbox" class="filled-in" name="rateLimiter" {{if
+                            .config.RateLimiter}}checked{{end}} />
+                        <span>RateLimiter</span>
+                    </label>
+
+                </div>
+
+
+
+            </div>
+            <div class="row" style="margin-top: 30px; margin-bottom: 30px;">
+                <div class="col s12 m3">
+                    <label>
+                        <input type="checkbox" class="filled-in" name="bann" {{if .config.Bann}}checked{{end}} />
+                        <span>BannList</span>
+                    </label>
+                </div>
+                <div class="col s12 m3">
+                    <label>
+                        <input type="checkbox" class="filled-in" name="metric" {{if .config.Metrics}}checked{{end}} />
+                        <span>Metrics</span>
+                    </label>
+
+                </div>
+
+
+
+
+            </div>
+
+            <div class="row" style="margin-top: 30px; margin-bottom: 30px;">
+                <div class="col s12 m12 input-field outlined">
+                    <input id="http_port" type="text" name="port" placeholder="HTTP Port" maxlength="5"
+                        value="{{.config.Port}}">
+                    <label for="http_port">HTTP Port</label>
+                    <!--<span class="supporting-text">Supporting Text</span>-->
+
+                </div>
+            </div>
+            <div class="row" style="margin-top: 30px; margin-bottom: 30px;">
+                <div class="col s12 m12 input-field outlined">
+                    <input id="ssl_port" type="text" name="sslPort" placeholder="SSL Port" maxlength="5"
+                        value="{{.config.SSLPort}}">
+                    <label for="ssl_port">SSL Port</label>
+                    <!--<span class="supporting-text">Supporting Text</span>-->
+
+                </div>
+            </div>
+            <div class="row" style="margin-top: 30px; margin-bottom: 30px;">
+                <div class="col s12 m12 input-field outlined">
+                    <input id="ssl_port" type="text" name="prefix" placeholder="Prefix" maxlength="5"
+                        value="{{.config.Prefix}}">
+                    <label for="ssl_port">Prefix</label>
+                    <!--<span class="supporting-text">Supporting Text</span>-->
+
+                </div>
+            </div>
+            <div class="row" style="margin-top: 30px; margin-bottom: 30px;">
+                <div class="col s12 m12 input-field outlined">
+                    <input id="ssl_port" type="text" name="metricPath" placeholder="MetricPath" maxlength="5"
+                        value="{{.config.MetricPath}}">
+                    <label for="ssl_port">MetricPath</label>
+                    <!--<span class="supporting-text">Supporting Text</span>-->
+
+                </div>
+            </div>
+            <div class="row" style="margin-top: 30px; margin-bottom: 30px;">
+                <div class="col s12 m12 input-field outlined">
+                    <input id="ssl_port" type="text" name="pemCrt" placeholder="PemCrt" maxlength="5"
+                        value="{{.config.PemCrt}}">
+                    <label for="ssl_port">PemCrt</label>
+                    <!--<span class="supporting-text">Supporting Text</span>-->
+
+                </div>
+            </div>
+            <div class="row" style="margin-top: 30px; margin-bottom: 30px;">
+                <div class="col s12 m12 input-field outlined">
+                    <input id="ssl_port" type="text" name="pemKey" placeholder="PemKey" maxlength="5"
+                        value="{{.config.PemKey}}">
+                    <label for="ssl_port">PemKey</label>
+                    <!--<span class="supporting-text">Supporting Text</span>-->
+
+                </div>
+            </div>
+            <div class="row" style="margin-top: 30px; margin-bottom: 30px;">
+                <div class="col s12 m12 input-field outlined">
+                    <input id="ssl_port" type="text" name="rate" placeholder="Rate" maxlength="5"
+                        value="{{.config.Rate.Rate}}">
+                    <label for="ssl_port">Max Rate per Hour / IP</label>
+                    <!--<span class="supporting-text">Supporting Text</span>-->
+
+                </div>
+            </div>
+
+            <button class="btn waves-effect waves-light" type="submit">Speichern</button>
+        </form>
+    </div>
 </div>
