@@ -24,6 +24,7 @@ type Endpoint struct {
 	Certs		 Certs
 	Active        bool
 	Name          string
+	OverrideTimeout 	 int
 	HeaderRouteMatches []Header
 	HeaderExists  []Header
 	HeaderAdd []Header

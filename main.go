@@ -122,8 +122,6 @@ func main() {
 	}
 }
 
-
-
 func routing(c *gin.Context) {
 	var ltime LogTime
 	ltime.StartTimePRE = time.Now()
@@ -207,7 +205,7 @@ func routing(c *gin.Context) {
 		//Basic Enpoint Router
 		litem.EndPoint = service.BasicEndpoint.Endpoint
 
-		processRequest(c, service.BasicEndpoint, remainingPath,&litem, &ltime)
+		processRequest(c, service.BasicEndpoint, remainingPath, &litem, &ltime)
 
 	} else if len(service.Endpoints) > 0 {
 		var endpoint pservice.Endpoint
@@ -277,7 +275,7 @@ func routing(c *gin.Context) {
 		//SUB Enpoint Router
 		litem.HeaderRouting = true
 		litem.EndPoint = endpoint.Endpoint
-	
+
 		processRequest(c, endpoint, remainingPath, &litem, &ltime)
 	} else {
 		global.Log.Errorln("No endpoint found")
@@ -340,10 +338,10 @@ func JWTCheck(c *gin.Context, jw pservice.JWTPreCheck) bool {
 	return false
 }
 
-func processRequest(c *gin.Context, endpoint pservice.Endpoint,remainingPath string, logItem *database.Logtable, timemod *LogTime) {
+func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath string, logItem *database.Logtable, timemod *LogTime) {
 	// URL zusammenbauen
 	global.Log.Infoln("BaseEndpoint:", endpoint.Endpoint)
-	newURL, _ := url.Parse( endpoint.Endpoint)
+	newURL, _ := url.Parse(endpoint.Endpoint)
 	newURL.Path += "/" + remainingPath
 	if c.Request.URL.RawQuery != "" {
 		newURL.RawQuery = c.Request.URL.RawQuery
@@ -373,10 +371,10 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint,remainingPath str
 	var client *http.Client
 	if !endpoint.VerifySSL {
 		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, 
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
 		client = &http.Client{Transport: tr}
-	} else if endpoint.CertAuth{
+	} else if endpoint.CertAuth {
 		cert, err := tls.X509KeyPair([]byte(endpoint.Certs.CertPEM), []byte(endpoint.Certs.CertKEY))
 		if err != nil {
 			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
@@ -387,12 +385,17 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint,remainingPath str
 		}
 		client = &http.Client{Transport: tr}
 
-	
-	}else {
+	} else {
 		client = &http.Client{}
 	}
 
-	// HTTP-Request senden
+
+	if endpoint.OverrideTimeout > 0 {
+		client.Timeout = time.Duration(endpoint.OverrideTimeout) * time.Second
+	} else {
+
+		client.Timeout = 5 * time.Second
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
