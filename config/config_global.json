@@ -1,7 +1,14 @@
 {
 	"ssl": false,
 	"debug": true,
-	"excludedPaths": ["/favicon.ico", "/robots.txt", "/sitemap.xml", "/sitemap.xml.gz", "/", ""],
+	"excludedPaths": [
+		"/favicon.ico",
+		"/robots.txt",
+		"/sitemap.xml",
+		"/sitemap.xml.gz",
+		"/",
+		""
+	],
 	"port": "8080",
 	"sslPort": "443",
 	"cors": true,
@@ -12,12 +19,34 @@
 	"pemCrt": "/etc/letsencrypt/live/deine-domain.de/fullchain.pem",
 	"pemKey": "/etc/letsencrypt/live/deine-domain.de/privkey.pem",
 	"metricPath": "/metrics",
-	"metricWhitelist": ["127.0.0.1"],
+	"metricWhitelist": [
+		"127.0.0.1"
+	],
 	"bannlist": [],
 	"rate": {
 		"rate": 500,
 		"window": 3600000000000
 	},
-	"rateWhitelist": ["127.0.0.1"]
-
+	"rateWhitelist": [
+		"127.0.0.1"
+	],
+	"corsAdvanced": true,
+	"corsAllowOrigins": [
+		"*"
+	],
+	"corsAllowMethods": [
+		"GET",
+		"POST",
+		"PUT",
+		"DELETE",
+		"OPTIONS"
+	],
+	"corsAllowHeaders": [
+		"Origin",
+		"Authorization",
+		"Content-Type",
+		"Accept"
+	],
+	"exportLog": false,
+	"exportLogPath": "/var/log/noxway.log"
 }

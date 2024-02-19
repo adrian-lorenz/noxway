@@ -6,6 +6,7 @@ import (
 	"api-gateway/middleware"
 	"api-gateway/pservice"
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,11 +35,12 @@ type LogTime struct {
 }
 
 func main() {
+	global.LoadAllConfig() // thread safe
 	global.InitLogger()
 	if _, err := os.Stat(".env"); err == nil {
 		godotenv.Load()
 	}
-	global.LoadAllConfig() // thread safe
+
 	RateConfig := middleware.RateLimiterConfig{
 		Rate:   global.Config.Rate.Rate,
 		Window: global.Config.Rate.Window,
@@ -57,7 +59,16 @@ func main() {
 	router.SetTrustedProxies(nil)
 	// Middleware
 	if global.Config.Cors {
-		router.Use(cors.Default())
+		if global.Config.CorsAdvanced {
+			config := cors.DefaultConfig()
+			config.AllowOrigins = []string{"*"}
+			config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+			config.AllowHeaders = []string{"Origin", "Authorization", "Content-Type", "Accept"}
+			router.Use(cors.New(config))
+		} else {
+			router.Use(cors.Default())
+		}
+
 	}
 	if global.Config.Metrics {
 		router.Use(middleware.MetricsMiddleware())
@@ -110,6 +121,8 @@ func main() {
 		router.Run(":" + global.Config.Port)
 	}
 }
+
+
 
 func routing(c *gin.Context) {
 	var ltime LogTime
@@ -193,7 +206,8 @@ func routing(c *gin.Context) {
 		}
 		//Basic Enpoint Router
 		litem.EndPoint = service.BasicEndpoint.Endpoint
-		processRequest(c, service.BasicEndpoint.Endpoint, remainingPath, service.BasicEndpoint.HeaderReplace, service.BasicEndpoint.HeaderAdd, &litem, &ltime)
+
+		processRequest(c, service.BasicEndpoint, remainingPath,&litem, &ltime)
 
 	} else if len(service.Endpoints) > 0 {
 		var endpoint pservice.Endpoint
@@ -263,7 +277,8 @@ func routing(c *gin.Context) {
 		//SUB Enpoint Router
 		litem.HeaderRouting = true
 		litem.EndPoint = endpoint.Endpoint
-		processRequest(c, endpoint.Endpoint, remainingPath, endpoint.HeaderReplace, endpoint.HeaderAdd, &litem, &ltime)
+	
+		processRequest(c, endpoint, remainingPath, &litem, &ltime)
 	} else {
 		global.Log.Errorln("No endpoint found")
 		litem.Message = "No endpoint found"
@@ -325,41 +340,10 @@ func JWTCheck(c *gin.Context, jw pservice.JWTPreCheck) bool {
 	return false
 }
 
-// processRequest sendet die HTTP-Anfrage und verarbeitet die Antwort
-/*func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerReplacements []pservice.HeaderReplace, headerAdds []pservice.Header, logItem *database.Logtable) {
+func processRequest(c *gin.Context, endpoint pservice.Endpoint,remainingPath string, logItem *database.Logtable, timemod *LogTime) {
 	// URL zusammenbauen
-	newURL, _ := url.Parse(baseEndpoint)
-	newURL.Path += "/" + remainingPath
-	if c.Request.URL.RawQuery != "" {
-		newURL.RawQuery = c.Request.URL.RawQuery
-	}
-
-	// HTTP-Request an den Microservice senden
-	resp, err := http.Get(newURL.String())
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
-		return
-	}
-	logItem.StatusCode = resp.StatusCode
-	defer resp.Body.Close()
-
-	// Header verarbeiten
-	processResponseHeaders(c, resp, headerReplacements, headerAdds)
-
-	// Statuscode und Body an den Client weiterleiten
-	c.Status(resp.StatusCode)
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
-		return
-	}
-	c.Writer.Write(body)
-
-}*/
-func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerReplacements []pservice.HeaderReplace, headerAdds []pservice.Header, logItem *database.Logtable, timemod *LogTime) {
-	// URL zusammenbauen
-	global.Log.Infoln("BaseEndpoint:", baseEndpoint)
-	newURL, _ := url.Parse(baseEndpoint)
+	global.Log.Infoln("BaseEndpoint:", endpoint.Endpoint)
+	newURL, _ := url.Parse( endpoint.Endpoint)
 	newURL.Path += "/" + remainingPath
 	if c.Request.URL.RawQuery != "" {
 		newURL.RawQuery = c.Request.URL.RawQuery
@@ -385,10 +369,31 @@ func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerRe
 	// Original-Header kopieren oder modifizieren
 	copyHeaders(c.Request.Header, req.Header)
 
-	// Header ersetzen oder hinzufügen basierend auf headerReplacements und headerAdds
+	// VerifySSL
+	var client *http.Client
+	if !endpoint.VerifySSL {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, 
+		}
+		client = &http.Client{Transport: tr}
+	} else if endpoint.CertAuth{
+		cert, err := tls.X509KeyPair([]byte(endpoint.Certs.CertPEM), []byte(endpoint.Certs.CertKEY))
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
+		}
+		client = &http.Client{Transport: tr}
+
+	
+	}else {
+		client = &http.Client{}
+	}
 
 	// HTTP-Request senden
-	client := &http.Client{}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
@@ -399,7 +404,7 @@ func processRequest(c *gin.Context, baseEndpoint, remainingPath string, headerRe
 	defer resp.Body.Close()
 
 	// Header verarbeiten
-	processResponseHeaders(c, resp, headerReplacements, headerAdds)
+	processResponseHeaders(c, resp, endpoint.HeaderReplace, endpoint.HeaderAdd)
 
 	// Statuscode und Body an den Client weiterleiten
 	c.Status(resp.StatusCode)

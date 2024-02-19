@@ -24,6 +24,12 @@ type ConfigStruct struct {
 	Bannlist        []string `json:"bannlist"`
 	Rate            Rates    `json:"rate"`
 	RateWhitelist   []string `json:"rateWhitelist"`
+	CorsAllowOrigins []string `json:"corsAllowOrigins"`
+	CorsAllowMethods []string `json:"corsAllowMethods"`
+	CorsAllowHeaders []string `json:"corsAllowHeaders"`
+	CorsAdvanced	bool     `json:"corsAdvanced"`
+	ExportLog		bool     `json:"exportLog"`
+	ExportLogPath	string   `json:"exportLogPath"`
 }
 
 type Rates struct {

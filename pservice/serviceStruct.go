@@ -20,6 +20,8 @@ type Service struct {
 type Endpoint struct {
 	Endpoint      string
 	VerifySSL     bool
+	CertAuth    bool
+	Certs		 Certs
 	Active        bool
 	Name          string
 	HeaderRouteMatches []Header
@@ -41,6 +43,10 @@ type JWTPreCheck struct {
 type Header struct {
 	Header string
 	Value  string
+}
+type Certs struct {
+	CertPEM string
+	CertKEY  string
 }
 
 
