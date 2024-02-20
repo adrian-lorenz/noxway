@@ -1,6 +1,0 @@
-.sidenav-fixed {
-    z-index: 995; /* Standard ist 996 für sidenav in MaterializeCSS */
-}
-main {
-    margin-left: 250px;
-}

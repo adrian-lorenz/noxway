@@ -2,13 +2,7 @@
 	"ssl": false,
 	"debug": true,
 	"excludedPaths": [
-		"/favicon.ico",
-		"/robots.txt",
-		"/sitemap.xml",
-		"/sitemap.xml.gz",
-		"/",
-		""
-	],
+		],
 	"port": "8080",
 	"sslPort": "443",
 	"cors": true,
