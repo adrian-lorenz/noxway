@@ -79,15 +79,21 @@ func main() {
 	if global.Config.RateLimiter {
 		router.Use(middleware.RateLimiterMiddleware(RateConfig))
 	}
+	router.Static("/static", "./web/static")
+
+	router.GET("/web/*any", func(c *gin.Context) {
+        c.File("./web/index.html")
+    })
+
 
 	router.Any(global.Config.Prefix+"*path", routing)
 
 	router.GET("/reload", func(c *gin.Context) {
-		if !intJWTCheck(c){
+		if !intJWTCheck(c) {
 			c.AbortWithStatus(401)
 			return
 		}
-		
+
 		if slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
 			global.LoadAllConfig()
 			c.JSON(200, gin.H{
@@ -102,7 +108,7 @@ func main() {
 	})
 
 	router.GET("/config_global", func(c *gin.Context) {
-		if !intJWTCheck(c){
+		if !intJWTCheck(c) {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -120,7 +126,7 @@ func main() {
 		if !slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
 			c.AbortWithStatus(404)
 			return
-		} 
+		}
 		if os.Getenv("BASIC_PASS") == "" {
 			c.AbortWithStatus(404)
 			return
@@ -149,9 +155,8 @@ func main() {
 		c.JSON(200, gin.H{"token": tokenString})
 	})
 
-
 	router.POST("/config_global", func(c *gin.Context) {
-		if !intJWTCheck(c){
+		if !intJWTCheck(c) {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -173,7 +178,7 @@ func main() {
 	})
 
 	router.GET("/config_service", func(c *gin.Context) {
-		if !intJWTCheck(c){
+		if !intJWTCheck(c) {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -187,7 +192,7 @@ func main() {
 	})
 
 	router.POST("/config_service", func(c *gin.Context) {
-		if !intJWTCheck(c){
+		if !intJWTCheck(c) {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -209,7 +214,7 @@ func main() {
 	})
 
 	router.GET(global.Config.MetricPath, func(c *gin.Context) {
-		if !intJWTCheck(c){
+		if !intJWTCheck(c) {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -577,11 +582,10 @@ func processResponseHeaders(c *gin.Context, resp *http.Response, headerReplaceme
 	}
 }
 
-
 func intJWTCheck(c *gin.Context) bool {
 	tokenString := c.GetHeader("token")
 	if tokenString == "" {
-		
+
 		return false
 	}
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -593,10 +597,9 @@ func intJWTCheck(c *gin.Context) bool {
 	})
 
 	if err != nil || !token.Valid {
-		
+
 		return false
 	}
-	
 
 	return true
 }

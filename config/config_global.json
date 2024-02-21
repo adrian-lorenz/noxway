@@ -9,8 +9,8 @@
   "bann": true,
   "metric": true,
   "prefix": "/v1/",
-  "pemCrt": "/etc/letsencrypt/live/deine-domain.de/fullchain.pem",
-  "pemKey": "/etc/letsencrypt/live/deine-domain.de/privkey.pem",
+  "pemCrt": "/etc/letsencrypt/live/gateway.glasmatic-services.net/fullchain.pem",
+  "pemKey": "/etc/letsencrypt/live/gateway.glasmatic-services.net/privkey.pem",
   "metricPath": "/metrics",
   "metricWhitelist": [
     "127.0.0.1"
