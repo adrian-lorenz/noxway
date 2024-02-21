@@ -70,3 +70,33 @@ func LoadAllConfig() {
 	SetSrvConfig(*serviceStruct)
 	SetGlobConfig(*configStruct)
 }
+
+func SaveGlobalConfig() {
+	mu.Lock() // Sperren vor der Aktualisierung
+	data, err := config.MarshalConfig(Config)
+	if err != nil {
+		fmt.Println("Fehler beim Speichern der Konfiguration:", err)
+		panic(err)
+	}
+	err = os.WriteFile(filepath.Join(Path, "config", "config_global.json"), data, 0666)
+	if err != nil {
+		fmt.Println("Fehler beim Speichern der Konfiguration:", err)
+		panic(err)
+	}
+	mu.Unlock() // Freigeben nach der Aktualisierung
+}
+
+func SaveServiceConfig() {
+	mu.Lock() // Sperren vor der Aktualisierung
+	data, err := pservice.MarshalConfig(Services)
+	if err != nil {
+		fmt.Println("Fehler beim Speichern der Konfiguration:", err)
+		panic(err)
+	}
+	err = os.WriteFile(filepath.Join(Path, "config", "config_service.json"), data, 0666)
+	if err != nil {
+		fmt.Println("Fehler beim Speichern der Konfiguration:", err)
+		panic(err)
+	}
+	mu.Unlock() // Freigeben nach der Aktualisierung
+}

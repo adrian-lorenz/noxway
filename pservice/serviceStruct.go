@@ -14,6 +14,7 @@ type Service struct {
 	BasicEndpoint Endpoint
 	Active        bool
 	Name          string
+	UUID 		string
 	
 }
 
@@ -24,16 +25,18 @@ type Endpoint struct {
 	Certs		 Certs
 	Active        bool
 	Name          string
+	UUID 		string
 	OverrideTimeout 	 int
 	HeaderRouteMatches []Header
 	HeaderExists  []Header
 	HeaderAdd []Header
-	JWTPreCheck   JWTPreCheck
+	JWTPreCheck	bool
+	JWTData   JWTPreCheck
 	HeaderReplace []HeaderReplace
 }
 
 type JWTPreCheck struct {
-	Active bool
+	
 	Header string
 	Key   string
 	OnlySign bool
@@ -70,3 +73,8 @@ func LoadConfig(path string) (*Services, error) {
 	}
 	return &config, nil
 }
+
+func MarshalConfig(config Services) ([]byte, error) {
+	return json.MarshalIndent(config, "", "  ")
+}
+

@@ -30,6 +30,9 @@ type ConfigStruct struct {
 	CorsAdvanced	bool     `json:"corsAdvanced"`
 	ExportLog		bool     `json:"exportLog"`
 	ExportLogPath	string   `json:"exportLogPath"`
+	Hostnamecheck	bool     `json:"hostnamecheck"`
+	Hostname		string   `json:"hostname"`
+	Name		string   `json:"name"`
 }
 
 type Rates struct {
@@ -49,4 +52,8 @@ func LoadConfig(path string) (*ConfigStruct, error) {
 		return nil, err
 	}
 	return &config, nil
+}
+
+func MarshalConfig(config ConfigStruct) ([]byte, error) {
+	return json.MarshalIndent(config, "", "  ")
 }

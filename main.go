@@ -61,9 +61,9 @@ func main() {
 	if global.Config.Cors {
 		if global.Config.CorsAdvanced {
 			config := cors.DefaultConfig()
-			config.AllowOrigins = []string{"*"}
-			config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
-			config.AllowHeaders = []string{"Origin", "Authorization", "Content-Type", "Accept"}
+			config.AllowOrigins = global.Config.CorsAllowOrigins
+			config.AllowMethods = global.Config.CorsAllowMethods
+			config.AllowHeaders = global.Config.CorsAllowHeaders
 			router.Use(cors.New(config))
 		} else {
 			router.Use(cors.Default())
@@ -83,6 +83,11 @@ func main() {
 	router.Any(global.Config.Prefix+"*path", routing)
 
 	router.GET("/reload", func(c *gin.Context) {
+		if !intJWTCheck(c){
+			c.AbortWithStatus(401)
+			return
+		}
+		
 		if slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
 			global.LoadAllConfig()
 			c.JSON(200, gin.H{
@@ -95,7 +100,119 @@ func main() {
 
 		}
 	})
+
+	router.GET("/config_global", func(c *gin.Context) {
+		if !intJWTCheck(c){
+			c.AbortWithStatus(401)
+			return
+		}
+
+		if slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+			c.JSON(200, global.Config)
+			return
+		} else {
+			c.AbortWithStatus(404)
+			return
+		}
+	})
+
+	router.GET("/login", func(c *gin.Context) {
+		if !slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+			c.AbortWithStatus(404)
+			return
+		} 
+		if os.Getenv("BASIC_PASS") == "" {
+			c.AbortWithStatus(404)
+			return
+		}
+
+		username, password, ok := c.Request.BasicAuth()
+		if !ok {
+			c.AbortWithStatus(401)
+			return
+		}
+
+		if username != "admin" || password != os.Getenv("BASIC_PASS") {
+			c.AbortWithStatus(401)
+			return
+		}
+		claims := jwt.MapClaims{
+			"issuer":   "api-gateway",
+			"username": username,
+		}
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		tokenString, err := token.SignedString([]byte(os.Getenv("JWTSECRET")))
+		if err != nil {
+			c.AbortWithStatus(500)
+			return
+		}
+		c.JSON(200, gin.H{"token": tokenString})
+	})
+
+
+	router.POST("/config_global", func(c *gin.Context) {
+		if !intJWTCheck(c){
+			c.AbortWithStatus(401)
+			return
+		}
+		if slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+			err := c.ShouldBindJSON(&global.Config)
+			if err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+			global.SaveGlobalConfig()
+			c.JSON(200, gin.H{
+				"message": "Config saved",
+			})
+			return
+		} else {
+			c.AbortWithStatus(404)
+			return
+		}
+	})
+
+	router.GET("/config_service", func(c *gin.Context) {
+		if !intJWTCheck(c){
+			c.AbortWithStatus(401)
+			return
+		}
+		if slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+			c.JSON(200, global.Services.Services)
+			return
+		} else {
+			c.AbortWithStatus(404)
+			return
+		}
+	})
+
+	router.POST("/config_service", func(c *gin.Context) {
+		if !intJWTCheck(c){
+			c.AbortWithStatus(401)
+			return
+		}
+		if slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+			err := c.ShouldBindJSON(&global.Services.Services)
+			if err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+			global.SaveServiceConfig()
+			c.JSON(200, gin.H{
+				"message": "Config saved",
+			})
+			return
+		} else {
+			c.AbortWithStatus(404)
+			return
+		}
+	})
+
 	router.GET(global.Config.MetricPath, func(c *gin.Context) {
+		if !intJWTCheck(c){
+			c.AbortWithStatus(401)
+			return
+		}
 		if global.Config.Metrics && slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
 			middleware.AppMetrics.RLock()
 			defer middleware.AppMetrics.RUnlock()
@@ -132,6 +249,14 @@ func routing(c *gin.Context) {
 		go safeLog(litem, ltime)
 	}()
 	host := c.Request.Host
+	if global.Config.Hostnamecheck {
+		if global.Config.Hostname != host {
+			global.Log.Errorln("Hostname not valid")
+			litem.Message = "Hostname not valid"
+			c.AbortWithStatus(404)
+			return
+		}
+	}
 
 	trimmedPath := strings.TrimPrefix(c.Param("path"), global.Config.Prefix)
 	trimmedPath = strings.Trim(trimmedPath, "/")
@@ -186,8 +311,8 @@ func routing(c *gin.Context) {
 	if service.BasicEndpoint.Active && len(service.Endpoints) == 0 {
 		//Basic Enpoint Precheck
 		litem.HeaderRouting = true
-		if service.BasicEndpoint.JWTPreCheck.Active {
-			if !JWTCheck(c, service.BasicEndpoint.JWTPreCheck) {
+		if service.BasicEndpoint.JWTPreCheck {
+			if !JWTCheck(c, service.BasicEndpoint.JWTData) {
 				global.Log.Errorln("JWT not valid")
 				litem.Message = "JWT not valid"
 				c.AbortWithStatus(404)
@@ -211,8 +336,8 @@ func routing(c *gin.Context) {
 		var endpoint pservice.Endpoint
 		for _, e := range service.Endpoints {
 			if e.Active {
-				if e.JWTPreCheck.Active {
-					if !JWTCheck(c, e.JWTPreCheck) {
+				if e.JWTPreCheck {
+					if !JWTCheck(c, e.JWTData) {
 						global.Log.Errorln("JWT not valid")
 						litem.Message = "JWT not valid"
 						c.AbortWithStatus(404)
@@ -389,7 +514,6 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath st
 		client = &http.Client{}
 	}
 
-
 	if endpoint.OverrideTimeout > 0 {
 		client.Timeout = time.Duration(endpoint.OverrideTimeout) * time.Second
 	} else {
@@ -451,4 +575,28 @@ func processResponseHeaders(c *gin.Context, resp *http.Response, headerReplaceme
 			c.Header(name, values[0])
 		}
 	}
+}
+
+
+func intJWTCheck(c *gin.Context) bool {
+	tokenString := c.GetHeader("token")
+	if tokenString == "" {
+		
+		return false
+	}
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(os.Getenv("JWTSECRET")), nil
+	})
+
+	if err != nil || !token.Valid {
+		
+		return false
+	}
+	
+
+	return true
 }
