@@ -39,7 +39,7 @@
   "corsAdvanced": true,
   "exportLog": false,
   "exportLogPath": "/var/log/noxway.log",
-  "hostnamecheck": true,
+  "hostnamecheck": false,
   "hostname": "127.0.0.1",
   "name": "Gateway 2"
 }

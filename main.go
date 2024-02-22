@@ -106,10 +106,38 @@ func main() {
 
 		}
 	})
+	router.GET("/database/:span", func(c *gin.Context) {
+		if !intJWTCheck(c) {
+			c.AbortWithStatus(401)
+			return
+		}
+		//benötige alle datenbanke einträger der letzten span oder database/all
+		span := c.Param("span")
+		var logs []database.Logtable
+		if span == "all" {
+			database.DB.Find(&logs)
+			c.JSON(200, logs)
+			return
+		}
+		if span == "hour" {
+			database.DB.Where("created > ?", time.Now().Add(-time.Hour)).Find(&logs)
+			c.JSON(200, logs)
+			return
+		}
+		if span == "day" {
+			database.DB.Where("created > ?", time.Now().Add(-time.Hour*24)).Find(&logs)
+			c.JSON(200, logs)
+			return
+		}
+	})
 
 	router.GET("/config_global", func(c *gin.Context) {
 		if !intJWTCheck(c) {
 			c.AbortWithStatus(401)
+			return
+		}
+		if !slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+			c.AbortWithStatus(404)
 			return
 		}
 
@@ -419,10 +447,10 @@ func safeLog(litem database.Logtable, timemod LogTime) {
 	timemod.DurationPRE = timemod.EndTimePRE.Sub(timemod.StartTimePRE)
 	timemod.DurationSRV = timemod.EndTimeSRV.Sub(timemod.StartTimeSRV)
 	timemod.DurationFULL = timemod.EndTimeFULL.Sub(timemod.StartTimePRE)
-	litem.TimePre = float32(timemod.DurationPRE.Seconds())
-	litem.TimePost = float32(timemod.DurationSRV.Seconds())
-	litem.TimeFull = float32(timemod.DurationFULL.Seconds())
-	litem.ResponseTime = float32(timemod.DurationFULL.Seconds())
+	litem.TimePre = float32(timemod.DurationPRE.Nanoseconds())
+	litem.TimePost = float32(timemod.DurationSRV.Milliseconds())
+	litem.TimeFull = float32(timemod.DurationFULL.Milliseconds())
+	litem.ResponseTime = float32(timemod.DurationFULL.Milliseconds())
 	err := database.DB.Create(&litem).Error
 	if err != nil {
 		global.Log.Errorln("Error while logging:", err)
