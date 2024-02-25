@@ -21,7 +21,8 @@
     "window": 3600000000000
   },
   "rateWhitelist": [
-    "127.0.0.1"
+    "127.0.0.1",
+    "127.0.0.2"
   ],
   "corsAllowOrigins": [
     "*"
@@ -37,9 +38,9 @@
     "*"
   ],
   "corsAdvanced": true,
-  "exportLog": false,
+  "exportLog": true,
   "exportLogPath": "/var/log/noxway.log",
-  "hostnamecheck": false,
+  "hostnamecheck": true,
   "hostname": "127.0.0.1",
-  "name": "Gateway 2"
+  "name": "Gateway 3"
 }

@@ -7,8 +7,10 @@ import (
 	"api-gateway/pservice"
 	"bytes"
 	"crypto/tls"
+	"embed"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,6 +24,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
+//go:embed web/assets/*
+var staticFiles embed.FS
+
+//go:embed web/index.html
+var indexHTML []byte
 
 type LogTime struct {
 	StartTimePRE time.Time
@@ -79,12 +86,21 @@ func main() {
 	if global.Config.RateLimiter {
 		router.Use(middleware.RateLimiterMiddleware(RateConfig))
 	}
-	router.Static("/static", "./web/static")
+
+	
+
+	staticFS, eerr := fs.Sub(staticFiles, "web/assets")
+
+	if eerr != nil {
+		global.Log.Errorln("Error while embedding static files:", eerr)
+	}
+
+
+	router.StaticFS("/assets", http.FS(staticFS))
 
 	router.GET("/web/*any", func(c *gin.Context) {
-        c.File("./web/index.html")
-    })
-
+		c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
+	})
 
 	router.Any(global.Config.Prefix+"*path", routing)
 
