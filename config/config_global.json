@@ -4,16 +4,29 @@
   "excludedPaths": [],
   "port": "8080",
   "sslPort": "443",
-  "cors": true,
-  "rateLimiter": true,
-  "bann": true,
-  "metric": true,
+  "cors": false,
+  "rateLimiter": false,
+  "bann": false,
+  "metric": false,
   "prefix": "/v1/",
-  "pemCrt": "/etc/letsencrypt/live/gateway.glasmatic-services.net/fullchain.pem",
-  "pemKey": "/etc/letsencrypt/live/gateway.glasmatic-services.net/privkey.pem",
-  "metricPath": "/metrics",
-  "metricWhitelist": [
-    "127.0.0.1"
+  "pemCrt": "",
+  "pemKey": "",
+  "systemWhitelist": [
+    "127.0.0.1",
+    "192.168.1.2",
+    "192.168.1.22",
+    "192.168.1.2",
+    "192.168.1.22",
+    "192.168.1.2",
+    "192.168.1.22",
+    "192.168.1.2",
+    "192.168.1.22",
+    "192.168.1.2",
+    "192.168.1.22",
+    "192.168.1.2",
+    "192.168.1.22",
+    "192.168.1.2",
+    "192.168.1.22"
   ],
   "bannlist": [],
   "rate": {
@@ -21,8 +34,7 @@
     "window": 3600000000000
   },
   "rateWhitelist": [
-    "127.0.0.1",
-    "127.0.0.2"
+    "127.0.0.1"
   ],
   "corsAllowOrigins": [
     "*"
@@ -32,15 +44,16 @@
     "POST",
     "PUT",
     "DELETE",
+    "PATCH",
     "OPTIONS"
   ],
   "corsAllowHeaders": [
     "*"
   ],
-  "corsAdvanced": true,
-  "exportLog": true,
+  "corsAdvanced": false,
+  "exportLog": false,
   "exportLogPath": "/var/log/noxway.log",
-  "hostnamecheck": true,
-  "hostname": "127.0.0.1",
-  "name": "Gateway 3"
+  "hostnamecheck": false,
+  "hostname": "",
+  "name": "Noway API Gateway"
 }

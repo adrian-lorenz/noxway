@@ -1,6 +1,7 @@
 package main
 
 import (
+	"api-gateway/auth"
 	"api-gateway/database"
 	"api-gateway/global"
 	"api-gateway/middleware"
@@ -23,7 +24,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
+	"golang.org/x/crypto/bcrypt"
 )
+
 //go:embed web/assets/*
 var staticFiles embed.FS
 
@@ -42,6 +45,12 @@ type LogTime struct {
 }
 
 func main() {
+	
+	if _, err := os.Stat("./config"); os.IsNotExist(err) {
+		os.Mkdir("./config", 0755)
+	}
+
+
 	global.LoadAllConfig() // thread safe
 	global.InitLogger()
 	if _, err := os.Stat(".env"); err == nil {
@@ -87,14 +96,11 @@ func main() {
 		router.Use(middleware.RateLimiterMiddleware(RateConfig))
 	}
 
-	
-
 	staticFS, eerr := fs.Sub(staticFiles, "web/assets")
 
 	if eerr != nil {
 		global.Log.Errorln("Error while embedding static files:", eerr)
 	}
-
 
 	router.StaticFS("/assets", http.FS(staticFS))
 
@@ -102,15 +108,31 @@ func main() {
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
 	})
 
+	router.GET("/testservice1", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "Testservice1",
+			"headers": c.Request.Header,
+			"ip":      c.ClientIP(),
+		})
+	})
+
+	router.GET("/testservice2", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "Testservice1",
+			"headers": c.Request.Header,
+			"ip":      c.ClientIP(),
+		})
+	})
+
 	router.Any(global.Config.Prefix+"*path", routing)
 
 	router.GET("/reload", func(c *gin.Context) {
-		if !intJWTCheck(c) {
+		if !intJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
 
-		if slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+		if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
 			global.LoadAllConfig()
 			c.JSON(200, gin.H{
 				"message": "Config reloaded",
@@ -123,11 +145,11 @@ func main() {
 		}
 	})
 	router.GET("/database/:span", func(c *gin.Context) {
-		if !intJWTCheck(c) {
+		if !intJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
-		//benötige alle datenbanke einträger der letzten span oder database/all
+
 		span := c.Param("span")
 		var logs []database.Logtable
 		if span == "all" {
@@ -148,16 +170,16 @@ func main() {
 	})
 
 	router.GET("/config_global", func(c *gin.Context) {
-		if !intJWTCheck(c) {
+		if !intJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
-		if !slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+		if !slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
 			c.AbortWithStatus(404)
 			return
 		}
 
-		if slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+		if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
 			c.JSON(200, global.Config)
 			return
 		} else {
@@ -166,12 +188,100 @@ func main() {
 		}
 	})
 
-	router.GET("/login", func(c *gin.Context) {
-		if !slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+	router.GET("/config_auth", func(c *gin.Context) {
+		if !intJWTCheck(c, "admin") {
+			c.AbortWithStatus(401)
+			return
+		}
+		if !slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
 			c.AbortWithStatus(404)
 			return
 		}
-		if os.Getenv("BASIC_PASS") == "" {
+		// geb nur usernamen und rolle zurück keine passwörter
+		var users []auth.User
+		for _, u := range global.Auth.Users {
+			users = append(users, auth.User{
+				Username: u.Username,
+				Role:     u.Role,
+			})
+		}
+		c.JSON(200, users)
+	})
+
+	router.POST("/set_user", func(c *gin.Context) {
+		if !intJWTCheck(c, "admin") {
+			c.AbortWithStatus(401)
+			return
+		}
+		if !slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+			c.AbortWithStatus(404)
+			return
+		}
+		var user auth.User
+		err := c.ShouldBindJSON(&user)
+		if err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+		err = auth.AddUser(&global.Auth, user, user.Role, user.Service)
+		if err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+		global.SaveAuthConfig()
+		c.JSON(200, gin.H{
+			"message": "User added",
+		})
+	})
+
+	router.POST("/setAdmin", func(c *gin.Context) {
+		if !slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+			c.AbortWithStatus(404)
+			return
+		}
+		type nAdminPwd struct {
+			OldPassword string   `json:"password" binding:"required"`
+			NewPassword string   `json:"newpassword" binding:"required"`
+			Whitelist   []string `json:"whitelist" binding:"required"`
+		}
+		var np nAdminPwd
+		err := c.ShouldBindJSON(&np)
+		if err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+		for i, u := range global.Auth.Users {
+			if u.Username == "admin" {
+				err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(np.OldPassword))
+				if err != nil {
+					c.AbortWithStatus(401)
+					return
+				}
+				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(np.NewPassword), bcrypt.DefaultCost)
+				if err != nil {
+					c.JSON(400, gin.H{"error": err.Error()})
+					return
+				}
+
+				global.Auth.Users[i].Password = string(hashedPassword)
+				global.Config.SystemWhitelist = np.Whitelist
+
+				break
+			}
+			c.AbortWithStatus(404)
+
+		}
+		global.SaveAuthConfig()
+		global.SaveGlobalConfig()
+		global.LoadAllConfig()
+		c.JSON(200, gin.H{
+			"message": "Password changed",
+		})
+
+	})
+
+	router.GET("/login", func(c *gin.Context) {
+		if !slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
 			c.AbortWithStatus(404)
 			return
 		}
@@ -181,14 +291,34 @@ func main() {
 			c.AbortWithStatus(401)
 			return
 		}
+		aUser := auth.User{
+			Username: username,
+			Password: password,
+			Role:     "",
+		}
+		valid := false
 
-		if username != "admin" || password != os.Getenv("BASIC_PASS") {
+		for _, u := range global.Auth.Users {
+			if u.Username == aUser.Username {
+				err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(aUser.Password))
+				if err != nil {
+					c.AbortWithStatus(401)
+					return
+				}
+				aUser.Role = u.Role
+				valid = true
+				break
+			}
+		}
+		if !valid {
 			c.AbortWithStatus(401)
 			return
 		}
+
 		claims := jwt.MapClaims{
 			"issuer":   "api-gateway",
 			"username": username,
+			"role":     aUser.Role,
 		}
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 		tokenString, err := token.SignedString([]byte(os.Getenv("JWTSECRET")))
@@ -200,11 +330,11 @@ func main() {
 	})
 
 	router.POST("/config_global", func(c *gin.Context) {
-		if !intJWTCheck(c) {
+		if !intJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
-		if slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+		if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
 			err := c.ShouldBindJSON(&global.Config)
 			if err != nil {
 				c.JSON(400, gin.H{"error": err.Error()})
@@ -222,11 +352,11 @@ func main() {
 	})
 
 	router.GET("/config_service", func(c *gin.Context) {
-		if !intJWTCheck(c) {
+		if !intJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
-		if slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+		if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
 			c.JSON(200, global.Services.Services)
 			return
 		} else {
@@ -236,11 +366,11 @@ func main() {
 	})
 
 	router.POST("/config_service", func(c *gin.Context) {
-		if !intJWTCheck(c) {
+		if !intJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
-		if slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
+		if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
 			err := c.ShouldBindJSON(&global.Services.Services)
 			if err != nil {
 				c.JSON(400, gin.H{"error": err.Error()})
@@ -254,26 +384,6 @@ func main() {
 		} else {
 			c.AbortWithStatus(404)
 			return
-		}
-	})
-
-	router.GET(global.Config.MetricPath, func(c *gin.Context) {
-		if !intJWTCheck(c) {
-			c.AbortWithStatus(401)
-			return
-		}
-		if global.Config.Metrics && slices.Contains(global.Config.MetricWhitelist, middleware.GetIP(c)) {
-			middleware.AppMetrics.RLock()
-			defer middleware.AppMetrics.RUnlock()
-			c.JSON(200, gin.H{
-				"total_requests":        middleware.AppMetrics.TotalRequests,
-				"average_request_size":  float64(middleware.AppMetrics.TotalRequestSize) / float64(middleware.AppMetrics.TotalRequests),
-				"average_response_size": float64(middleware.AppMetrics.TotalResponseSize) / float64(middleware.AppMetrics.TotalRequests),
-				"average_duration":      middleware.AppMetrics.TotalDuration.Seconds() / float64(middleware.AppMetrics.TotalRequests),
-			})
-			return
-		} else {
-			c.AbortWithStatus(404)
 		}
 	})
 
@@ -460,6 +570,20 @@ func routing(c *gin.Context) {
 
 func safeLog(litem database.Logtable, timemod LogTime) {
 	timemod.EndTimeFULL = time.Now()
+
+
+	if timemod.EndTimePRE.IsZero() {
+		timemod.EndTimePRE = timemod.EndTimeFULL
+	}
+	if timemod.StartTimeSRV.IsZero() {
+		timemod.StartTimeSRV = timemod.EndTimeFULL
+	}
+	if timemod.EndTimeSRV.IsZero() {
+		timemod.EndTimeSRV = timemod.EndTimeFULL
+	}
+	
+
+	
 	timemod.DurationPRE = timemod.EndTimePRE.Sub(timemod.StartTimePRE)
 	timemod.DurationSRV = timemod.EndTimeSRV.Sub(timemod.StartTimeSRV)
 	timemod.DurationFULL = timemod.EndTimeFULL.Sub(timemod.StartTimePRE)
@@ -539,7 +663,7 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath st
 	}
 
 	// Original-Header kopieren oder modifizieren
-	copyHeaders(c.Request.Header, req.Header)
+	copyHeaders(c.Request.Header, req.Header, endpoint.HeaderReplace, endpoint.HeaderAdd)
 
 	// VerifySSL
 	var client *http.Client
@@ -579,9 +703,6 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath st
 	logItem.Routed = true
 	defer resp.Body.Close()
 
-	// Header verarbeiten
-	processResponseHeaders(c, resp, endpoint.HeaderReplace, endpoint.HeaderAdd)
-
 	// Statuscode und Body an den Client weiterleiten
 	c.Status(resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
@@ -595,43 +716,42 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath st
 }
 
 // Hilfsfunktion zum Kopieren von Headern
-func copyHeaders(src, dest http.Header) {
+func copyHeaders(src, dest http.Header, headerReplacements []pservice.HeaderReplace, headerAdds []pservice.Header) {
+	//header adds
 	for key, values := range src {
 		for _, value := range values {
 			dest.Add(key, value)
 		}
 	}
-}
-
-// processResponseHeaders verarbeitet und ersetzt Header basierend auf den Konfigurationen
-func processResponseHeaders(c *gin.Context, resp *http.Response, headerReplacements []pservice.HeaderReplace, headerAdds []pservice.Header) {
-	//hinzufügen der Headers
-	if len(headerAdds) > 0 {
-		for _, h := range headerAdds {
-			c.Header(h.Header, h.Value)
-		}
-	}
-	// Ersetzen der Headers
+	//header replacements
 	replacementMap := make(map[string]string)
 	for _, hr := range headerReplacements {
 		replacementMap[hr.Header] = hr.NewValue
 	}
-
-	for name, values := range resp.Header {
+	for name, values := range src {
 		if newValue, ok := replacementMap[name]; ok {
-			c.Header(name, newValue)
+			dest.Set(name, newValue)
 		} else {
-			c.Header(name, values[0])
+			dest.Set(name, values[0])
 		}
 	}
+	//hinzufügen der Headers
+	if len(headerAdds) > 0 {
+		for _, h := range headerAdds {
+			dest.Add(h.Header, h.Value)
+		}
+	}
+
 }
 
-func intJWTCheck(c *gin.Context) bool {
+func intJWTCheck(c *gin.Context, role string) bool {
 	tokenString := c.GetHeader("token")
 	if tokenString == "" {
 
 		return false
 	}
+	//check if the token is valid
+
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -644,6 +764,11 @@ func intJWTCheck(c *gin.Context) bool {
 
 		return false
 	}
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		if claims["role"] == role {
+			return true
+		}
+	}
 
-	return true
+	return false
 }

@@ -19,8 +19,7 @@ type ConfigStruct struct {
 	Prefix         string     `json:"prefix"`
 	PemCrt          string   `json:"pemCrt"`
 	PemKey          string   `json:"pemKey"`
-	MetricPath      string   `json:"metricPath"`
-	MetricWhitelist []string `json:"metricWhitelist"`
+	SystemWhitelist []string `json:"systemWhitelist"`
 	Bannlist        []string `json:"bannlist"`
 	Rate            Rates    `json:"rate"`
 	RateWhitelist   []string `json:"rateWhitelist"`
@@ -53,6 +52,9 @@ func LoadConfig(path string) (*ConfigStruct, error) {
 	}
 	return &config, nil
 }
+
+//chek if the config exists, else create a new one
+
 
 func MarshalConfig(config ConfigStruct) ([]byte, error) {
 	return json.MarshalIndent(config, "", "  ")
