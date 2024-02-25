@@ -6,6 +6,7 @@ import (
 	"api-gateway/global"
 	"api-gateway/middleware"
 	"api-gateway/pservice"
+	"api-gateway/testservices"
 	"bytes"
 	"crypto/tls"
 	"embed"
@@ -108,21 +109,10 @@ func main() {
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
 	})
 
-	router.GET("/testservice1", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "Testservice1",
-			"headers": c.Request.Header,
-			"ip":      c.ClientIP(),
-		})
-	})
+	router.GET("/testservice1", testservices.Testservice1)
+	router.GET("/testservice2", testservices.Testservice2)
 
-	router.GET("/testservice2", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "Testservice1",
-			"headers": c.Request.Header,
-			"ip":      c.ClientIP(),
-		})
-	})
+
 
 	router.Any(global.Config.Prefix+"*path", routing)
 
@@ -236,6 +226,7 @@ func main() {
 
 	router.POST("/setAdmin", func(c *gin.Context) {
 		if !slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+			global.Log.Errorln("IP not in whitelist")
 			c.AbortWithStatus(404)
 			return
 		}
@@ -250,25 +241,35 @@ func main() {
 			c.JSON(400, gin.H{"error": err.Error()})
 			return
 		}
+		foundUser := false
 		for i, u := range global.Auth.Users {
 			if u.Username == "admin" {
 				err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(np.OldPassword))
 				if err != nil {
+					global.Log.Errorln("Old password not valid")
 					c.AbortWithStatus(401)
 					return
 				}
 				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(np.NewPassword), bcrypt.DefaultCost)
 				if err != nil {
+					global.Log.Errorln("Error while hashing password:", err)
 					c.JSON(400, gin.H{"error": err.Error()})
 					return
 				}
 
 				global.Auth.Users[i].Password = string(hashedPassword)
 				global.Config.SystemWhitelist = np.Whitelist
-
+				foundUser = true
 				break
 			}
+
+	
+
+		}
+		if !foundUser {
+			global.Log.Errorln("Admin user not found")
 			c.AbortWithStatus(404)
+			return
 
 		}
 		global.SaveAuthConfig()

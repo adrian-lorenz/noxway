@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -120,56 +119,6 @@ func SaveServiceConfig() {
 	mu.Unlock() // Freigeben nach der Aktualisierung
 }
 
-func CheckConfigGlob(path string) {
-	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		config := config.ConfigStruct{
-			SSL:             false,
-			Debug:           false,
-			ExcludedPaths:   []string{},
-			Port:            "8080",
-			SSLPort:         "443",
-			Cors:            false,
-			RateLimiter:     false,
-			Bann:            false,
-			Prefix:          "/v1/",
-			PemCrt:          "",
-			PemKey:          "",
-			SystemWhitelist: []string{"127.0.0.1"},
-			Bannlist:        []string{},
-			Rate: config.Rates{
-				Rate:   500,
-				Window: 3600000000000,
-			},
-			RateWhitelist:    []string{"127.0.0.1"},
-			CorsAllowOrigins: []string{"*"},
-			CorsAllowMethods: []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
-			CorsAllowHeaders: []string{"*"},
-			CorsAdvanced:     false,
-			ExportLog:        false,
-			ExportLogPath:    "/var/log/noxway.log",
-			Hostnamecheck:    false,
-			Hostname:         "",
-			Name:             "Noway API Gateway",
-		}
-		Config = config
-		SaveGlobalConfig()
-	}
-
-}
-
-func CheckConfigService(path string) {
-	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		services := pservice.Services{
-			Services: []pservice.Service{},
-		}
-		Services = services
-		SaveServiceConfig()
-	}
-}
-
-
 func SaveAuthConfig() {
 	mu.Lock() // Sperren vor der Aktualisierung
 	data, err := auth.MarshalConfig(Auth)
@@ -183,29 +132,6 @@ func SaveAuthConfig() {
 		panic(err)
 	}
 	mu.Unlock() // Freigeben nach der Aktualisierung
-}
-
-func CheckConfigAuth(path string) {
-	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
-		if err != nil {
-			fmt.Println("Fehler beim Generieren des Passworts:", err)
-			return
-		}
-		auth := auth.AuthStruct{
-			Users: []auth.User{
-				{
-					Username: "admin",
-					Password: string(hashedPassword),
-					Role:     "admin",
-				},
-			},
-		}				
-
-		Auth = auth
-		SaveAuthConfig()
-	}
 }
 
 func SetAuthConfig(newConfig auth.AuthStruct) {
