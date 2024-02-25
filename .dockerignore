@@ -3,3 +3,4 @@ config/*.json
 .env
 .gitignore
 *.sh
+db_data/
