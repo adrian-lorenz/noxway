@@ -57,7 +57,11 @@ func main() {
 	if _, err := os.Stat(".env"); err == nil {
 		godotenv.Load()
 	}
-
+	if os.Getenv("DATABASE") == "" {
+		global.Log.Errorln("DATABASE not set")
+		panic("DATABASE not set")
+	}
+	 
 	RateConfig := middleware.RateLimiterConfig{
 		Rate:   global.Config.Rate.Rate,
 		Window: global.Config.Rate.Window,
@@ -225,11 +229,13 @@ func main() {
 	})
 
 	router.POST("/setAdmin", func(c *gin.Context) {
+		/*
 		if !slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
 			global.Log.Errorln("IP not in whitelist")
 			c.AbortWithStatus(404)
 			return
 		}
+		*/
 		type nAdminPwd struct {
 			OldPassword string   `json:"password" binding:"required"`
 			NewPassword string   `json:"newpassword" binding:"required"`
