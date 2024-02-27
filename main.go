@@ -47,11 +47,6 @@ type LogTime struct {
 
 func main() {
 	
-	if _, err := os.Stat("./config"); os.IsNotExist(err) {
-		os.Mkdir("./config", 0755)
-	}
-
-
 	global.LoadAllConfig() // thread safe
 	global.InitLogger()
 	if _, err := os.Stat(".env"); err == nil {
@@ -71,7 +66,11 @@ func main() {
 	if dberr != nil {
 		global.Log.Errorln("Fehler beim Verbinden zur Datenbank:", dberr)
 		panic(dberr)
+	}else{
+		global.Log.Infoln("Database connected")
+	
 	}
+
 	// init Router
 	if !global.Config.Debug {
 		gin.SetMode(gin.ReleaseMode)
@@ -229,13 +228,19 @@ func main() {
 	})
 
 	router.POST("/setAdmin", func(c *gin.Context) {
-		/*
-		if !slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
-			global.Log.Errorln("IP not in whitelist")
+		// only is no whitelist is set
+		setter := false
+		if len(global.Config.SystemWhitelist) == 0  {
+			setter = true
+		}else{
+			if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+				setter = true
+			}
+		}
+		if !setter {
 			c.AbortWithStatus(404)
 			return
 		}
-		*/
 		type nAdminPwd struct {
 			OldPassword string   `json:"password" binding:"required"`
 			NewPassword string   `json:"newpassword" binding:"required"`
@@ -265,6 +270,7 @@ func main() {
 
 				global.Auth.Users[i].Password = string(hashedPassword)
 				global.Config.SystemWhitelist = np.Whitelist
+				global.Config.SystemWhitelist = append(global.Config.SystemWhitelist, middleware.GetIP(c))
 				foundUser = true
 				break
 			}
@@ -292,6 +298,7 @@ func main() {
 			c.AbortWithStatus(404)
 			return
 		}
+
 
 		username, password, ok := c.Request.BasicAuth()
 		if !ok {
@@ -333,6 +340,7 @@ func main() {
 			c.AbortWithStatus(500)
 			return
 		}
+		fmt.Println("User logged in:", username, "Role:", aUser.Role, "IP:", middleware.GetIP(c))
 		c.JSON(200, gin.H{"token": tokenString})
 	})
 
@@ -652,7 +660,7 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath st
 		newURL.RawQuery = c.Request.URL.RawQuery
 	}
 
-	// Request-Body für neue Anfrage vorbereiten (falls notwendig)
+	// Request-Body für neue Anfrage vorbereiten 
 	var requestBody io.Reader
 	if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut || c.Request.Method == http.MethodPatch {
 		bodyBytes, _ := io.ReadAll(c.Request.Body)

@@ -2,14 +2,14 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: 'noxway/noxway:0.0.1'
     ports:
       - "8080:8080"
       - "443:443"
     volumes:
-      - ./certs:/app/certs
+      - ./noxway/certs:/app/certs
+      - ./noxway/config:/app/config
+      - ./noxway/log:/app/log
     environment:
       JWTSECRET: "v4eAZlM0w9tpWx7SpTklWTRUCXyI8p"
       DATABASE: "noxway:${NOXWAY_DB_PASSWORD}@tcp(db:3306)/noxway?charset=utf8&parseTime=True&loc=Local"
@@ -26,7 +26,7 @@ services:
       MYSQL_USER: noxway
       MYSQL_PASSWORD: "${NOXWAY_DB_PASSWORD}"
     volumes:
-      - ./db_data:/var/lib/mysql
+      - ./noxway/db_data:/var/lib/mysql
       - ./initdb:/docker-entrypoint-initdb.d
     restart: unless-stopped
 
