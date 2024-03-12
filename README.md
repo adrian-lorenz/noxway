@@ -9,6 +9,7 @@ Super-fast, efficient API gateway written in Go & React/TS
 * ~~Endpoint JWT Auth~~
 * Gateway Let's Encrypt Automatic Retrieve/Renew
 * Code Cleanup
+* Tests
 * ~~Deployment~~
 
 
