@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"api-gateway/global"
+	"github.com/adrian-lorenz/noxway/global"
 	"net"
 	"sort"
 	"strings"

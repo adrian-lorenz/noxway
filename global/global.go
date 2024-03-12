@@ -1,9 +1,9 @@
 package global
 
 import (
-	"api-gateway/auth"
-	"api-gateway/config"
-	"api-gateway/pservice"
+	"github.com/adrian-lorenz/noxway/auth"
+	"github.com/adrian-lorenz/noxway/config"
+	"github.com/adrian-lorenz/noxway/pservice"
 	"fmt"
 	"io"
 	"os"

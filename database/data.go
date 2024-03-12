@@ -1,7 +1,7 @@
 package database
 
 import (
-	"api-gateway/global"
+	"github.com/adrian-lorenz/noxway/global"
 	"errors"
 	"os"
 	"time"

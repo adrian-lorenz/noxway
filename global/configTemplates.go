@@ -1,10 +1,12 @@
 package global
 
 import (
-	"api-gateway/auth"
-	"api-gateway/config"
-	"api-gateway/pservice"
 	"fmt"
+
+	"github.com/adrian-lorenz/noxway/auth"
+	"github.com/adrian-lorenz/noxway/config"
+	"github.com/adrian-lorenz/noxway/pservice"
+
 	"os"
 
 	"golang.org/x/crypto/bcrypt"
@@ -58,9 +60,9 @@ func CheckConfigService(path string) {
 					Active: true,
 					UUID:   "7652ba0d-008a-4f39-bfe4-a6cae84e8076",
 					BasicEndpoint: pservice.Endpoint{
-						Endpoint:  "http://127.0.0.1:8080/testservice1",
-						VerifySSL: false,
-						CertAuth:  false,
+						Endpoint:           "http://127.0.0.1:8080/testservice1",
+						VerifySSL:          false,
+						CertAuth:           false,
 						Active:             true,
 						Name:               "Testservice1",
 						UUID:               "a79231a8-2c5b-465d-853c-ffc1282c662c",
@@ -74,9 +76,9 @@ func CheckConfigService(path string) {
 					},
 					Endpoints: []pservice.Endpoint{
 						{
-							Endpoint:  "http://127.0.0.1:8080/testservice2",
-							VerifySSL: false,
-							CertAuth:  false,
+							Endpoint:        "http://127.0.0.1:8080/testservice2",
+							VerifySSL:       false,
+							CertAuth:        false,
 							Active:          true,
 							Name:            "testservice2",
 							UUID:            "9f2e6487-8dea-428d-a87a-f878d1548966",

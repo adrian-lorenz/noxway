@@ -1,12 +1,6 @@
 package main
 
 import (
-	"api-gateway/auth"
-	"api-gateway/database"
-	"api-gateway/global"
-	"api-gateway/middleware"
-	"api-gateway/pservice"
-	"api-gateway/testservices"
 	"bytes"
 	"crypto/tls"
 	"embed"
@@ -19,6 +13,15 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/adrian-lorenz/noxway/certs"
+	"github.com/adrian-lorenz/noxway/middleware"
+	"github.com/adrian-lorenz/noxway/pservice"
+	"github.com/adrian-lorenz/noxway/testservices"
+
+	"github.com/adrian-lorenz/noxway/auth"
+	"github.com/adrian-lorenz/noxway/database"
+	"github.com/adrian-lorenz/noxway/global"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -46,7 +49,7 @@ type LogTime struct {
 }
 
 func main() {
-	
+
 	global.LoadAllConfig() // thread safe
 	global.InitLogger()
 	if _, err := os.Stat(".env"); err == nil {
@@ -56,7 +59,12 @@ func main() {
 		global.Log.Errorln("DATABASE not set")
 		panic("DATABASE not set")
 	}
-	 
+
+	_, err := certs.CertPreCheck("server.noa-x.de")
+	if err != nil {
+		global.Log.Errorln("Failed to check certificate:", err)
+	}
+
 	RateConfig := middleware.RateLimiterConfig{
 		Rate:   global.Config.Rate.Rate,
 		Window: global.Config.Rate.Window,
@@ -66,9 +74,9 @@ func main() {
 	if dberr != nil {
 		global.Log.Errorln("Fehler beim Verbinden zur Datenbank:", dberr)
 		panic(dberr)
-	}else{
+	} else {
 		global.Log.Infoln("Database connected")
-	
+
 	}
 
 	// init Router
@@ -114,8 +122,6 @@ func main() {
 
 	router.GET("/testservice1", testservices.Testservice1)
 	router.GET("/testservice2", testservices.Testservice2)
-
-
 
 	router.Any(global.Config.Prefix+"*path", routing)
 
@@ -230,9 +236,9 @@ func main() {
 	router.POST("/setAdmin", func(c *gin.Context) {
 		// only is no whitelist is set
 		setter := false
-		if len(global.Config.SystemWhitelist) == 0  {
+		if len(global.Config.SystemWhitelist) == 0 {
 			setter = true
-		}else{
+		} else {
 			if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
 				setter = true
 			}
@@ -275,8 +281,6 @@ func main() {
 				break
 			}
 
-	
-
 		}
 		if !foundUser {
 			global.Log.Errorln("Admin user not found")
@@ -298,7 +302,6 @@ func main() {
 			c.AbortWithStatus(404)
 			return
 		}
-
 
 		username, password, ok := c.Request.BasicAuth()
 		if !ok {
@@ -586,7 +589,6 @@ func routing(c *gin.Context) {
 func saveLog(litem database.Logtable, timemod LogTime) {
 	timemod.EndTimeFULL = time.Now()
 
-
 	if timemod.EndTimePRE.IsZero() {
 		timemod.EndTimePRE = timemod.EndTimeFULL
 	}
@@ -596,9 +598,7 @@ func saveLog(litem database.Logtable, timemod LogTime) {
 	if timemod.EndTimeSRV.IsZero() {
 		timemod.EndTimeSRV = timemod.EndTimeFULL
 	}
-	
 
-	
 	timemod.DurationPRE = timemod.EndTimePRE.Sub(timemod.StartTimePRE)
 	timemod.DurationSRV = timemod.EndTimeSRV.Sub(timemod.StartTimeSRV)
 	timemod.DurationFULL = timemod.EndTimeFULL.Sub(timemod.StartTimePRE)
@@ -660,7 +660,7 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath st
 		newURL.RawQuery = c.Request.URL.RawQuery
 	}
 
-	// Request-Body für neue Anfrage vorbereiten 
+	// Request-Body für neue Anfrage vorbereiten
 	var requestBody io.Reader
 	if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut || c.Request.Method == http.MethodPatch {
 		bodyBytes, _ := io.ReadAll(c.Request.Body)
