@@ -420,7 +420,7 @@ func routing(c *gin.Context) {
 
 	var litem database.Logtable
 	defer func() {
-		go safeLog(litem, ltime)
+		go saveLog(litem, ltime)
 	}()
 	host := c.Request.Host
 	if global.Config.Hostnamecheck {
@@ -583,7 +583,7 @@ func routing(c *gin.Context) {
 	}
 }
 
-func safeLog(litem database.Logtable, timemod LogTime) {
+func saveLog(litem database.Logtable, timemod LogTime) {
 	timemod.EndTimeFULL = time.Now()
 
 
