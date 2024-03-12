@@ -41,7 +41,7 @@ version: '3.8'
 
 services:
   app:
-    image: 'noxway/noxway:0.0.1'
+    image: 'noxway/noxway:0.0.2'
     ports:
       - "8080:8080"
       - "443:443"

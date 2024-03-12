@@ -11,3 +11,8 @@ curl -X POST -H "Content-Type: application/json" -d '{"password": "admin", "newp
 
 
 NOXWAY_DB_PASSWORD="trlud12333" docker-compose up --build
+
+
+docker build -t noxway/noxway:0.0.2 .
+docker login -u noxway     
+docker push noxway/noxway:0.0.1    
