@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"slices"
 	"strings"
 	"time"
 
@@ -135,12 +134,12 @@ func main() {
 	router.Any(global.Config.Prefix+"*path", routing)
 
 	router.GET("/reload", func(c *gin.Context) {
-		if !intJWTCheck(c, "admin") {
+		if !security.IntJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
 
-		if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+		if security.CheckWhitelists(middleware.GetIP(c)) {
 			global.LoadAllConfig()
 			c.JSON(200, gin.H{
 				"message": "Config reloaded",
@@ -153,7 +152,7 @@ func main() {
 		}
 	})
 	router.GET("/database/:span", func(c *gin.Context) {
-		if !intJWTCheck(c, "admin") {
+		if !security.IntJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -178,7 +177,7 @@ func main() {
 	})
 
 	router.GET("/config_global", func(c *gin.Context) {
-		if !intJWTCheck(c, "admin") {
+		if !security.IntJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -192,7 +191,7 @@ func main() {
 	})
 
 	router.GET("/config_auth", func(c *gin.Context) {
-		if !intJWTCheck(c, "admin") {
+		if !security.IntJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -212,7 +211,7 @@ func main() {
 	})
 
 	router.POST("/set_user", func(c *gin.Context) {
-		if !intJWTCheck(c, "admin") {
+		if !security.IntJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -354,7 +353,7 @@ func main() {
 	})
 
 	router.POST("/config_global", func(c *gin.Context) {
-		if !intJWTCheck(c, "admin") {
+		if !security.IntJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -376,7 +375,7 @@ func main() {
 	})
 
 	router.GET("/config_service", func(c *gin.Context) {
-		if !intJWTCheck(c, "admin") {
+		if !security.IntJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -390,7 +389,7 @@ func main() {
 	})
 
 	router.POST("/config_service", func(c *gin.Context) {
-		if !intJWTCheck(c, "admin") {
+		if !security.IntJWTCheck(c, "admin") {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -767,33 +766,4 @@ func copyHeaders(src, dest http.Header, headerReplacements []pservice.HeaderRepl
 		}
 	}
 
-}
-
-func intJWTCheck(c *gin.Context, role string) bool {
-	tokenString := c.GetHeader("token")
-	if tokenString == "" {
-
-		return false
-	}
-	//check if the token is valid
-
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(os.Getenv("JWTSECRET")), nil
-	})
-
-	if err != nil || !token.Valid {
-
-		return false
-	}
-	if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		if claims["role"] == role {
-			return true
-		}
-	}
-
-	return false
 }

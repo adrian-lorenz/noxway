@@ -8,6 +8,10 @@ import (
 )
 
 func RetiveCert(c *gin.Context) {
+	if !security.IntJWTCheck(c, "admin") {
+		c.AbortWithStatus(401)
+		return
+	}
 	if !security.CheckWhitelists(middleware.GetIP(c)) {
 		global.Log.Errorln("IP not whitelisted")
 		c.JSON(403, gin.H{"error": "IP not whitelisted"})
