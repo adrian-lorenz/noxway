@@ -15,20 +15,23 @@ import (
 func CheckConfigGlob(path string) {
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
-		config := config.ConfigStruct{
-			SSL:             false,
-			Debug:           false,
-			ExcludedPaths:   []string{},
-			Port:            "8080",
-			SSLPort:         "443",
-			Cors:            true,
-			RateLimiter:     true,
-			Bann:            false,
-			Prefix:          "/v1/",
-			PemCrt:          "./certs/cert.pem",
-			PemKey:          "./certs/privkey.pem",
-			SystemWhitelist: []string{},
-			Bannlist:        []string{},
+		configA := config.ConfigStruct{
+			SSL:                false,
+			Debug:              false,
+			ExcludedPaths:      []string{},
+			Port:               "8080",
+			SSLPort:            "443",
+			Cors:               true,
+			RateLimiter:        true,
+			Bann:               false,
+			SystemWhitelistDNS: []string{},
+			SSLMail:            "",
+			SSLDomain:          "",
+			Prefix:             "/v1/",
+			PemCrt:             "./certs/cert.pem",
+			PemKey:             "./certs/privkey.pem",
+			SystemWhitelist:    []string{},
+			Bannlist:           []string{},
 			Rate: config.Rates{
 				Rate:   500,
 				Window: 3600000000000,
@@ -44,7 +47,7 @@ func CheckConfigGlob(path string) {
 			Hostname:         "",
 			Name:             "Noway API Gateway",
 		}
-		Config = config
+		Config = configA
 		SaveGlobalConfig()
 	}
 
@@ -113,7 +116,7 @@ func CheckConfigAuth(path string) {
 			fmt.Println("Fehler beim Generieren des Passworts:", err)
 			return
 		}
-		auth := auth.AuthStruct{
+		authA := auth.AuthStruct{
 			Users: []auth.User{
 				{
 					Username: "admin",
@@ -123,7 +126,7 @@ func CheckConfigAuth(path string) {
 			},
 		}
 
-		Auth = auth
+		Auth = authA
 		SaveAuthConfig()
 	}
 }

@@ -5,7 +5,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
+	"github.com/adrian-lorenz/noxway/global"
 	"log"
 	"os"
 	"path/filepath"
@@ -53,6 +55,7 @@ func RetriveCert(domain, mail string) error {
 
 	cPath := filepath.Join(Path, "noxway", "certs", domain+".pem")
 	kPath := filepath.Join(Path, "noxway", "certs", domain+".key")
+	configFile := filepath.Join(Path, "noxway", "certs", domain+".json")
 	//pkey := filepath.Join(Path, "noxway", "certs", domain+  ".pkey")
 
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -60,13 +63,25 @@ func RetriveCert(domain, mail string) error {
 		return err
 	}
 
-	myUser := myUser{
+	myUserA := myUser{
 		Email: mail,
 		key:   privateKey,
 	}
 
-	config := lego.NewConfig(&myUser)
+	config := lego.NewConfig(&myUserA)
+	//save config to file
 
+	configBytes, err := json.Marshal(privateKey)
+	if err != nil {
+		global.Log.Errorln("Failed to serialize config:", err)
+		return err
+	}
+
+	err = os.WriteFile(configFile, configBytes, 0644)
+	if err != nil {
+		global.Log.Errorln("Failed to write config file:", err)
+		return err
+	}
 	client, err := lego.NewClient(config)
 	if err != nil {
 		return err
@@ -81,7 +96,7 @@ func RetriveCert(domain, mail string) error {
 	if err != nil {
 		return err
 	}
-	myUser.Registration = reg
+	myUserA.Registration = reg
 
 	request := certificate.ObtainRequest{
 		Domains: []string{domain},

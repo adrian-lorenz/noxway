@@ -5,6 +5,8 @@ import (
 	"crypto/tls"
 	"embed"
 	"fmt"
+	"github.com/adrian-lorenz/noxway/certs"
+	"github.com/adrian-lorenz/noxway/security"
 	"io"
 	"io/fs"
 	"net/http"
@@ -14,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adrian-lorenz/noxway/certs"
 	"github.com/adrian-lorenz/noxway/middleware"
 	"github.com/adrian-lorenz/noxway/pservice"
 	"github.com/adrian-lorenz/noxway/testservices"
@@ -53,18 +54,21 @@ func main() {
 	global.LoadAllConfig() // thread safe
 	global.InitLogger()
 	if _, err := os.Stat(".env"); err == nil {
-		godotenv.Load()
+		errD := godotenv.Load()
+		if errD != nil {
+			return
+		}
 	}
 	if os.Getenv("DATABASE") == "" {
 		global.Log.Errorln("DATABASE not set")
 		panic("DATABASE not set")
 	}
-
-	_, err := certs.CertPreCheck("server.noa-x.de")
-	if err != nil {
-		global.Log.Errorln("Failed to check certificate:", err)
-	}
-
+	/*
+		_, err := certs.CertPreCheck("server.noa-x.de")
+		if err != nil {
+			global.Log.Errorln("Failed to check certificate:", err)
+		}
+	*/
 	RateConfig := middleware.RateLimiterConfig{
 		Rate:   global.Config.Rate.Rate,
 		Window: global.Config.Rate.Window,
@@ -84,7 +88,10 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.Default()
-	router.SetTrustedProxies(nil)
+	errT := router.SetTrustedProxies(nil)
+	if errT != nil {
+		return
+	}
 	// Middleware
 	if global.Config.Cors {
 		if global.Config.CorsAdvanced {
@@ -122,6 +129,8 @@ func main() {
 
 	router.GET("/testservice1", testservices.Testservice1)
 	router.GET("/testservice2", testservices.Testservice2)
+
+	router.POST("/retiveCert", certs.RetiveCert)
 
 	router.Any(global.Config.Prefix+"*path", routing)
 
@@ -173,18 +182,13 @@ func main() {
 			c.AbortWithStatus(401)
 			return
 		}
-		if !slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+		if !security.CheckWhitelists(middleware.GetIP(c)) {
 			c.AbortWithStatus(404)
 			return
 		}
 
-		if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
-			c.JSON(200, global.Config)
-			return
-		} else {
-			c.AbortWithStatus(404)
-			return
-		}
+		c.JSON(200, global.Config)
+
 	})
 
 	router.GET("/config_auth", func(c *gin.Context) {
@@ -192,7 +196,7 @@ func main() {
 			c.AbortWithStatus(401)
 			return
 		}
-		if !slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+		if !security.CheckWhitelists(middleware.GetIP(c)) {
 			c.AbortWithStatus(404)
 			return
 		}
@@ -212,7 +216,7 @@ func main() {
 			c.AbortWithStatus(401)
 			return
 		}
-		if !slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+		if !security.CheckWhitelists(middleware.GetIP(c)) {
 			c.AbortWithStatus(404)
 			return
 		}
@@ -236,10 +240,10 @@ func main() {
 	router.POST("/setAdmin", func(c *gin.Context) {
 		// only is no whitelist is set
 		setter := false
-		if len(global.Config.SystemWhitelist) == 0 {
+		if len(global.Config.SystemWhitelist) == 0 || len(global.Config.SystemWhitelistDNS) == 0 {
 			setter = true
 		} else {
-			if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+			if security.CheckWhitelists(middleware.GetIP(c)) {
 				setter = true
 			}
 		}
@@ -248,9 +252,10 @@ func main() {
 			return
 		}
 		type nAdminPwd struct {
-			OldPassword string   `json:"password" binding:"required"`
-			NewPassword string   `json:"newpassword" binding:"required"`
-			Whitelist   []string `json:"whitelist" binding:"required"`
+			OldPassword  string   `json:"password" binding:"required"`
+			NewPassword  string   `json:"newpassword" binding:"required"`
+			DNSWhiteList []string `json:"dnswhitelist"`
+			Whitelist    []string `json:"whitelist" binding:"required"`
 		}
 		var np nAdminPwd
 		err := c.ShouldBindJSON(&np)
@@ -276,6 +281,7 @@ func main() {
 
 				global.Auth.Users[i].Password = string(hashedPassword)
 				global.Config.SystemWhitelist = np.Whitelist
+				global.Config.SystemWhitelistDNS = np.DNSWhiteList
 				global.Config.SystemWhitelist = append(global.Config.SystemWhitelist, middleware.GetIP(c))
 				foundUser = true
 				break
@@ -298,7 +304,7 @@ func main() {
 	})
 
 	router.GET("/login", func(c *gin.Context) {
-		if !slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+		if !security.CheckWhitelists(middleware.GetIP(c)) {
 			c.AbortWithStatus(404)
 			return
 		}
@@ -352,7 +358,7 @@ func main() {
 			c.AbortWithStatus(401)
 			return
 		}
-		if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+		if security.CheckWhitelists(middleware.GetIP(c)) {
 			err := c.ShouldBindJSON(&global.Config)
 			if err != nil {
 				c.JSON(400, gin.H{"error": err.Error()})
@@ -374,7 +380,7 @@ func main() {
 			c.AbortWithStatus(401)
 			return
 		}
-		if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+		if security.CheckWhitelists(middleware.GetIP(c)) {
 			c.JSON(200, global.Services.Services)
 			return
 		} else {
@@ -388,7 +394,7 @@ func main() {
 			c.AbortWithStatus(401)
 			return
 		}
-		if slices.Contains(global.Config.SystemWhitelist, middleware.GetIP(c)) {
+		if security.CheckWhitelists(middleware.GetIP(c)) {
 			err := c.ShouldBindJSON(&global.Services.Services)
 			if err != nil {
 				c.JSON(400, gin.H{"error": err.Error()})
@@ -412,7 +418,11 @@ func main() {
 			global.Log.Fatalf("Failed to start server: %v", err)
 		}
 	} else {
-		router.Run(":" + global.Config.Port)
+		errR := router.Run(":" + global.Config.Port)
+		if errR != nil {
+			global.Log.Fatalf("Failed to start server: %v", errR)
+			return
+		}
 	}
 }
 
