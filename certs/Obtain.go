@@ -55,12 +55,43 @@ func RetriveCert(domain, mail string) error {
 
 	cPath := filepath.Join(Path, "noxway", "certs", domain+".pem")
 	kPath := filepath.Join(Path, "noxway", "certs", domain+".key")
+	// prüfen on Zertifikat bereits vorhanden
+	if _, err := os.Stat(cPath); err == nil {
+		global.Log.Infoln("Zertifikat bereits vorhanden")
+		days, errC := GetCertDays(cPath)
+		if errC != nil {
+			return errC
+		}
+		global.Log.Infoln("Verbleibende Tage:", days)
+		if days > 10 {
+			global.Log.Infoln("Zertifikat ist noch gültig")
+			return nil
+		}
+	}
 	configFile := filepath.Join(Path, "noxway", "certs", domain+".json")
 	//pkey := filepath.Join(Path, "noxway", "certs", domain+  ".pkey")
+	// check if config file exists
+	var privateKey *ecdsa.PrivateKey
+	if _, err := os.Stat(configFile); err == nil {
+		// load config from file
+		global.Log.Infoln("Loading priv key from file")
+		configBytes, err := os.ReadFile(configFile)
+		if err != nil {
+			global.Log.Errorln("Failed to read priv config file:", err)
+			return err
+		}
+		err = json.Unmarshal(configBytes, &privateKey)
+		if err != nil {
+			global.Log.Errorln("Failed to deserialize priv config:", err)
+			return err
+		}
 
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return err
+	} else {
+		global.Log.Infoln("Gen priv key")
+		privateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			return err
+		}
 	}
 
 	myUserA := myUser{

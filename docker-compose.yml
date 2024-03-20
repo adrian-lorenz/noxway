@@ -2,10 +2,11 @@ version: '3.8'
 
 services:
   app:
-    image: 'noxway/noxway:0.0.1'
+    image: 'noxway/noxway:0.0.3'
     ports:
       - "8080:8080"
       - "443:443"
+      - "80:80"
     volumes:
       - ./noxway/certs:/app/certs
       - ./noxway/config:/app/config

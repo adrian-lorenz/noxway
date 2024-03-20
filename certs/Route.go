@@ -39,14 +39,16 @@ func RetiveCert(c *gin.Context) {
 		global.Config.SSLMail = r.Mail
 	}
 	global.SaveGlobalConfig()
+	/*
+		_, _, errC := CertExist(global.Config.SSLDomain)
+		if errC == nil {
+			global.Log.Infoln("Certificate ok")
+			c.JSON(200, gin.H{"message": "Certificate ok"})
+			return
+		}
 
-	_, _, errC := CertExist(global.Config.SSLDomain)
-	if errC == nil {
-		global.Log.Infoln("Certificate ok")
-		c.JSON(200, gin.H{"message": "Certificate ok"})
-		return
-	}
-	global.Log.Infoln("Certificate not ok")
+	*/
+
 	dnsCheck, errD := CheckDNS(global.Config.SSLDomain)
 	if errD != nil {
 		global.Log.Errorln("Failed to check DNS:", errD)
@@ -63,7 +65,7 @@ func RetiveCert(c *gin.Context) {
 		errR := RetriveCert(global.Config.SSLDomain, global.Config.SSLMail)
 		if errR != nil {
 			global.Log.Errorln("Failed to retrieve certificate:", errR)
-			c.JSON(500, gin.H{"error": "Failed to retrieve certificate", "message": errR.Error()})
+			c.JSON(500, gin.H{"error": "Failed to retrieve certificate: " + errR.Error()})
 			return
 		}
 		global.Log.Infoln("Certificate created")
@@ -71,7 +73,7 @@ func RetiveCert(c *gin.Context) {
 		cp, kp, errCc := CertExist(global.Config.SSLDomain)
 		if errCc != nil {
 			global.Log.Errorln("Failed to check certificate:", errCc)
-			c.JSON(500, gin.H{"error": "Failed to check certificate", "message": errCc.Error()})
+			c.JSON(500, gin.H{"error": "Failed to check certificate:" + errCc.Error()})
 			return
 		}
 		global.Config.PemCrt = cp

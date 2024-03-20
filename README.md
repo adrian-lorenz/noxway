@@ -8,7 +8,7 @@ Super-fast, efficient API gateway written in Go & React/TS
 * Endpoint Basic Auth
 * ~~Endpoint JWT Auth~~
 * ~~Gateway Let's Encrypt Automatic Retrieve~~
-* Lets Encrypt Renewal
+* ~~Lets Encrypt Renewal~~
 * Code Cleanup
 * Tests
 * ~~Deployment~~
@@ -25,7 +25,8 @@ Super-fast, efficient API gateway written in Go & React/TS
 curl -X POST -H "Content-Type: application/json" -d '{
     "password": "admin",
     "newpassword": "changeme",
-    "whitelist": ["whitelist_admin_ip"]
+    "whitelist": ["whitelist_admin_ip"],
+    "dnswhitelist": ["whitelist_admin_dns"]
     }' http://127.0.0.1:8080/setAdmin
 ```
 6. Open http://hosturl:8080/web
@@ -43,10 +44,11 @@ version: '3.8'
 
 services:
   app:
-    image: 'noxway/noxway:0.0.2'
+    image: 'noxway/noxway:0.0.3'
     ports:
       - "8080:8080"
       - "443:443"
+      - "80:80"
     volumes:
       - ./noxway/certs:/app/certs
       - ./noxway/config:/app/config
