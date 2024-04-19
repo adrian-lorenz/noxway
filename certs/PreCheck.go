@@ -16,8 +16,8 @@ func CertExist(domain string) (string, string, error) {
 		return "", "", fmt.Errorf("failed to get current working directory: %v", err)
 	}
 
-	cPath := filepath.Join(Path, "noxway", "certs", domain+".pem")
-	kPath := filepath.Join(Path, "noxway", "certs", domain+".key")
+	cPath := filepath.Join(Path, "certs", domain+".pem")
+	kPath := filepath.Join(Path, "certs", domain+".key")
 
 	_, err = os.Stat(cPath)
 	if os.IsNotExist(err) {

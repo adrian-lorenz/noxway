@@ -53,8 +53,8 @@ func RetriveCert(domain, mail string) error {
 		panic(err)
 	}
 
-	cPath := filepath.Join(Path, "noxway", "certs", domain+".pem")
-	kPath := filepath.Join(Path, "noxway", "certs", domain+".key")
+	cPath := filepath.Join(Path, "certs", domain+".pem")
+	kPath := filepath.Join(Path, "certs", domain+".key")
 	// prüfen on Zertifikat bereits vorhanden
 	if _, err := os.Stat(cPath); err == nil {
 		global.Log.Infoln("Zertifikat bereits vorhanden")
@@ -68,7 +68,7 @@ func RetriveCert(domain, mail string) error {
 			return nil
 		}
 	}
-	configFile := filepath.Join(Path, "noxway", "certs", domain+".json")
+	configFile := filepath.Join(Path, "certs", domain+".json")
 	//pkey := filepath.Join(Path, "noxway", "certs", domain+  ".pkey")
 	// check if config file exists
 	var privateKey *ecdsa.PrivateKey
