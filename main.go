@@ -685,7 +685,6 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath st
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
-
 	// Original-Header kopieren oder modifizieren
 	copyHeaders(c.Request.Header, req.Header, endpoint.HeaderReplace, endpoint.HeaderAdd)
 
@@ -729,12 +728,17 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath st
 
 	// Statuscode und Body an den Client weiterleiten
 	c.Status(resp.StatusCode)
+	// überschreibe den Header mit den Headers der Antwort
+	c.Header("Content-Type", resp.Header.Get("Content-Type"))
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
-	c.Writer.Write(body)
+	_, errW := c.Writer.Write(body)
+	if errW != nil {
+		return
+	}
 	timemod.EndTimeSRV = time.Now()
 
 }
