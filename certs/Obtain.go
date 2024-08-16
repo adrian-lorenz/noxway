@@ -5,12 +5,14 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"encoding/json"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
-	"github.com/adrian-lorenz/noxway/global"
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/adrian-lorenz/noxway/global"
 
 	"github.com/go-acme/lego/certificate"
 	"github.com/go-acme/lego/challenge/http01"
@@ -34,10 +36,40 @@ func (u *myUser) GetPrivateKey() crypto.PrivateKey {
 	return u.key
 }
 
+func savePrivateKeyToFile(key *ecdsa.PrivateKey, file string) error {
+	keyBytes, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return err
+	}
+
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: keyBytes,
+	})
+
+	return os.WriteFile(file, keyPEM, 0600)
+}
+
+func loadPrivateKeyFromFile(file string) (*ecdsa.PrivateKey, error) {
+	keyPEM, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+
+	block, _ := pem.Decode(keyPEM)
+	if block == nil || block.Type != "EC PRIVATE KEY" {
+		return nil, fmt.Errorf("failed to decode PEM block containing private key")
+	}
+
+	key, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return key, nil
+}
+
 // RetriveCert retrieves and saves a certificate for the given domain and email.
-//
-// Parameters: domain string, mail string
-// Return type: error
 func RetriveCert(domain, mail string) error {
 	if domain == "" {
 		return fmt.Errorf("domain is empty")
@@ -68,28 +100,26 @@ func RetriveCert(domain, mail string) error {
 			return nil
 		}
 	}
-	configFile := filepath.Join(Path, "certs", domain+".json")
-	//pkey := filepath.Join(Path, "noxway", "certs", domain+  ".pkey")
-	// check if config file exists
-	var privateKey *ecdsa.PrivateKey
-	if _, err := os.Stat(configFile); err == nil {
-		// load config from file
-		global.Log.Infoln("Loading priv key from file")
-		configBytes, err := os.ReadFile(configFile)
-		if err != nil {
-			global.Log.Errorln("Failed to read priv config file:", err)
-			return err
-		}
-		err = json.Unmarshal(configBytes, &privateKey)
-		if err != nil {
-			global.Log.Errorln("Failed to deserialize priv config:", err)
-			return err
-		}
 
+	var privateKey *ecdsa.PrivateKey
+	if _, err := os.Stat(kPath); err == nil {
+		// load private key from file
+		global.Log.Infoln("Loading priv key from file")
+		privateKey, err = loadPrivateKeyFromFile(kPath)
+		if err != nil {
+			global.Log.Errorln("Failed to read private key file:", err)
+			return err
+		}
 	} else {
 		global.Log.Infoln("Gen priv key")
 		privateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
+			return err
+		}
+
+		err = savePrivateKeyToFile(privateKey, kPath)
+		if err != nil {
+			global.Log.Errorln("Failed to save private key to file:", err)
 			return err
 		}
 	}
@@ -100,19 +130,7 @@ func RetriveCert(domain, mail string) error {
 	}
 
 	config := lego.NewConfig(&myUserA)
-	//save config to file
 
-	configBytes, err := json.Marshal(privateKey)
-	if err != nil {
-		global.Log.Errorln("Failed to serialize config:", err)
-		return err
-	}
-
-	err = os.WriteFile(configFile, configBytes, 0644)
-	if err != nil {
-		global.Log.Errorln("Failed to write config file:", err)
-		return err
-	}
 	client, err := lego.NewClient(config)
 	if err != nil {
 		return err
@@ -152,5 +170,4 @@ func RetriveCert(domain, mail string) error {
 	log.Printf("Zertifikat und privater Schlüssel erfolgreich gespeichert für %s", domain)
 
 	return nil
-
 }
