@@ -1,9 +1,11 @@
 # noxway
+
 Super-fast, efficient API gateway written in Go & React/TS
 
-**Attention: Currently not stable**
+## **Attention: Currently not stable**
 
-# Todo
+## Todo
+
 * Translation
 * Endpoint Basic Auth
 * ~~Endpoint JWT Auth~~
@@ -13,15 +15,16 @@ Super-fast, efficient API gateway written in Go & React/TS
 * Tests
 * ~~Deployment~~
 
-
-# Test Deployment
+## Test Deployment
 
 1. Create docker-compose.yaml
 2. Change MySql ROOT Password: `MYSQL_ROOT_PASSWORD: "changeme"`
 3. Change JWT Secret Key: `JWTSECRET: "changeme"`
 4. `NOXWAY_DB_PASSWORD="change_me_please" docker-compose up -d`
 5. Set Admin Password and Whitelist:
-```
+
+```bash
+
 curl -X POST -H "Content-Type: application/json" -d '{
     "password": "admin",
     "newpassword": "changeme",
@@ -29,22 +32,18 @@ curl -X POST -H "Content-Type: application/json" -d '{
     "dnswhitelist": ["whitelist_admin_dns"]
     }' http://127.0.0.1:8080/setAdmin
 ```
-6. Open http://hosturl:8080/web
+
+6. Open <http://hosturl:8080/web>
 7. Configure gateway SSL
 
-
-
-
-
-
-
 ## Docker-Compose
-```
+
+```ymal
 version: '3.8'
 
 services:
   app:
-    image: 'noxway/noxway:0.0.3'
+    image: 'noxway/noxway:latest'
     ports:
       - "8080:8080"
       - "443:443"
@@ -77,7 +76,7 @@ volumes:
   db_data:
   ```
 
-# Screens
+## Screens
 
 ![alt text](image.png)
 
@@ -86,4 +85,3 @@ volumes:
 ![alt text](image-2.png)
 
 ![alt text](image-3.png)
-
