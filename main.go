@@ -5,15 +5,17 @@ import (
 	"crypto/tls"
 	"embed"
 	"fmt"
-	"github.com/adrian-lorenz/noxway/certs"
-	"github.com/adrian-lorenz/noxway/security"
 	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/adrian-lorenz/noxway/certs"
+	"github.com/adrian-lorenz/noxway/security"
 
 	"github.com/adrian-lorenz/noxway/middleware"
 	"github.com/adrian-lorenz/noxway/pservice"
@@ -492,6 +494,13 @@ func routing(c *gin.Context) {
 		litem.Message = "Service not found or not active"
 		c.AbortWithStatus(404)
 		return
+	}
+	//check whitelist
+	if len(service.BasicEndpoint.Whitelist) > 0 {
+		if !slices.Contains(service.BasicEndpoint.Whitelist, middleware.GetIP(c)) {
+			c.AbortWithStatus(404)
+		}
+
 	}
 
 	if service.BasicEndpoint.Active && len(service.Endpoints) == 0 {

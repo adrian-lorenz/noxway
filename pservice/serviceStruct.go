@@ -30,6 +30,7 @@ type Endpoint struct {
 	HeaderRouteMatches []Header
 	HeaderExists  []Header
 	HeaderAdd []Header
+	Whitelist    []string
 	JWTPreCheck	bool
 	JWTData   JWTPreCheck
 	HeaderReplace []HeaderReplace
