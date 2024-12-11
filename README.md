@@ -2,19 +2,6 @@
 
 Super-fast, efficient API gateway written in Go & React/TS
 
-## **Attention: Currently not stable**
-
-## Todo
-
-* Translation
-* Endpoint Basic Auth
-* ~~Endpoint JWT Auth~~
-* ~~Gateway Let's Encrypt Automatic Retrieve~~
-* ~~Lets Encrypt Renewal~~
-* Code Cleanup
-* Tests
-* ~~Deployment~~
-
 ## Test Deployment
 
 1. Create docker-compose.yaml
