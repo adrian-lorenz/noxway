@@ -21,9 +21,9 @@ curl --request POST \
 NOXWAY_DB_PASSWORD="trlud12333" docker-compose up --build
 
 
-docker build -t noxway/noxway:0.0.3 .
+docker build -t noxway/noxway:1.0.1 .
 docker login -u noxway     
-docker push noxway/noxway:0.0.3
+docker push noxway/noxway:1.0.1
 
 
 

@@ -644,8 +644,14 @@ func JWTCheck(c *gin.Context, jw pservice.JWTPreCheck) bool {
 	if tokenString == "" {
 		return false
 	}
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 
+	// Überprüfen, ob das Token ein Bearer-Token ist, und ggf. Präfix entfernen
+	const bearerPrefix = "Bearer "
+	if len(tokenString) > len(bearerPrefix) && tokenString[:len(bearerPrefix)] == bearerPrefix {
+		tokenString = tokenString[len(bearerPrefix):]
+	}
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
