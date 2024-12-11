@@ -103,20 +103,31 @@ func RetriveCert(domain, mail string) error {
 
 	var privateKey *ecdsa.PrivateKey
 	if _, err := os.Stat(kPath); err == nil {
-		// load private key from file
+		// Private Key ist vorhanden, wir versuchen ihn zu laden
 		global.Log.Infoln("Loading priv key from file")
 		privateKey, err = loadPrivateKeyFromFile(kPath)
 		if err != nil {
-			global.Log.Errorln("Failed to read private key file:", err)
-			return err
+			// Wenn der Key nicht lesbar oder fehlerhaft ist, neuen Key generieren
+			global.Log.Errorln("Failed to read private key file, generating new one:", err)
+			privateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			if err != nil {
+				return err
+			}
+	
+			err = savePrivateKeyToFile(privateKey, kPath)
+			if err != nil {
+				global.Log.Errorln("Failed to save new private key to file:", err)
+				return err
+			}
 		}
 	} else {
+		// Kein privater Key vorhanden, neu generieren
 		global.Log.Infoln("Gen priv key")
 		privateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
 			return err
 		}
-
+	
 		err = savePrivateKeyToFile(privateKey, kPath)
 		if err != nil {
 			global.Log.Errorln("Failed to save private key to file:", err)
