@@ -113,7 +113,7 @@ func RetriveCert(domain, mail string) error {
 			if err != nil {
 				return err
 			}
-	
+
 			err = savePrivateKeyToFile(privateKey, kPath)
 			if err != nil {
 				global.Log.Errorln("Failed to save new private key to file:", err)
@@ -127,7 +127,7 @@ func RetriveCert(domain, mail string) error {
 		if err != nil {
 			return err
 		}
-	
+
 		err = savePrivateKeyToFile(privateKey, kPath)
 		if err != nil {
 			global.Log.Errorln("Failed to save private key to file:", err)
@@ -168,7 +168,7 @@ func RetriveCert(domain, mail string) error {
 	}
 	log.Printf("Zertifikat erfolgreich erhalten für %s", domain)
 
-	err = os.WriteFile(kPath, certificates.PrivateKey, 0644)
+	err = os.WriteFile(kPath, certificates.PrivateKey, 0600)
 	if err != nil {
 		return err
 	}

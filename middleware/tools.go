@@ -1,10 +1,10 @@
 package middleware
 
 import (
-	"github.com/adrian-lorenz/noxway/global"
 	"net"
-	"sort"
 	"strings"
+
+	"github.com/adrian-lorenz/noxway/global"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,10 +16,9 @@ func BannList() gin.HandlerFunc {
 			return
 		}
 		ip := GetIP(c)
-		result := binarySearchSubstring(global.Config.Bannlist, ip)
-		if len(result) > 0 {
+		if isBanned(global.Config.Bannlist, ip) {
 			global.Log.Errorln("Banned IP", ip)
-			c.AbortWithStatus(404)
+			c.AbortWithStatus(403)
 			return
 		}
 		c.Next()
@@ -39,17 +38,13 @@ func GetIP(c *gin.Context) string {
 	}
 	return host
 }
-func binarySearchSubstring(sliceStrings []string, substring string) []string {
-	matches := []string{}
-	index := sort.Search(len(sliceStrings), func(i int) bool {
-		return strings.Compare(sliceStrings[i], substring) >= 0
-	})
-	for i := index; i < len(sliceStrings); i++ {
-		if strings.Contains(sliceStrings[i], substring) {
-			matches = append(matches, sliceStrings[i])
-		} else {
-			break
+
+// isBanned checks if the IP matches any entry in the ban list using linear search
+func isBanned(bannList []string, ip string) bool {
+	for _, banned := range bannList {
+		if strings.Contains(ip, banned) || strings.Contains(banned, ip) {
+			return true
 		}
 	}
-	return matches
+	return false
 }

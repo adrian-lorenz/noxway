@@ -1,10 +1,11 @@
 package database
 
 import (
-	"github.com/adrian-lorenz/noxway/global"
 	"errors"
 	"os"
 	"time"
+
+	"github.com/adrian-lorenz/noxway/global"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -13,7 +14,6 @@ import (
 var DB *gorm.DB = nil
 
 func ConnectDB(rootpath string) error {
-	//dbfile := filepath.Join(rootpath, "database", "database.db")
 	db, err := gorm.Open(mysql.Open(os.Getenv("DATABASE")), &gorm.Config{})
 	if err != nil {
 		global.Log.Error(err)
@@ -26,6 +26,43 @@ func ConnectDB(rootpath string) error {
 
 	DB = db
 	return nil
+}
+
+// CleanupOldLogs deletes oldest entries when count exceeds maxEntries
+func CleanupOldLogs(maxEntries int) error {
+	if DB == nil {
+		return errors.New("database not initialized")
+	}
+
+	var count int64
+	if err := DB.Model(&Logtable{}).Count(&count).Error; err != nil {
+		return err
+	}
+
+	if count > int64(maxEntries) {
+		deleteCount := count - int64(maxEntries)
+		// Delete oldest entries by selecting the oldest IDs
+		subQuery := DB.Model(&Logtable{}).Select("id").Order("created ASC").Limit(int(deleteCount))
+		if err := DB.Where("id IN (?)", subQuery).Delete(&Logtable{}).Error; err != nil {
+			return err
+		}
+		global.Log.Infof("Cleaned up %d old log entries", deleteCount)
+	}
+	return nil
+}
+
+// StartCleanupRoutine starts a background goroutine that periodically cleans up old logs
+func StartCleanupRoutine(maxEntries int, interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := CleanupOldLogs(maxEntries); err != nil {
+				global.Log.Errorf("Log cleanup failed: %v", err)
+			}
+		}
+	}()
+	global.Log.Infof("Started log cleanup routine (max %d entries, every %v)", maxEntries, interval)
 }
 
 type Logtable struct {

@@ -1,14 +1,15 @@
 package global
 
 import (
-	"github.com/adrian-lorenz/noxway/auth"
-	"github.com/adrian-lorenz/noxway/config"
-	"github.com/adrian-lorenz/noxway/pservice"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/adrian-lorenz/noxway/auth"
+	"github.com/adrian-lorenz/noxway/config"
+	"github.com/adrian-lorenz/noxway/pservice"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -16,11 +17,32 @@ import (
 var (
 	Services = pservice.Services{}
 	Config   = config.ConfigStruct{}
-	mu       sync.Mutex
+	mu       sync.RWMutex
 	Path     string
 	Log      *log.Logger
 	Auth     = auth.AuthStruct{}
 )
+
+// GetConfig returns a copy of the global config with read-lock protection
+func GetConfig() config.ConfigStruct {
+	mu.RLock()
+	defer mu.RUnlock()
+	return Config
+}
+
+// GetServices returns a copy of the services config with read-lock protection
+func GetServices() pservice.Services {
+	mu.RLock()
+	defer mu.RUnlock()
+	return Services
+}
+
+// GetAuth returns a copy of the auth config with read-lock protection
+func GetAuth() auth.AuthStruct {
+	mu.RLock()
+	defer mu.RUnlock()
+	return Auth
+}
 
 func InitLogger() {
 	Log = log.New()
@@ -52,8 +74,8 @@ func SetSrvConfig(newConfig pservice.Services) {
 }
 
 func LoadAllConfig() {
-
-	Path, err := os.Getwd()
+	var err error
+	Path, err = os.Getwd()
 	if err != nil {
 		fmt.Println("Fehler beim Ermitteln des aktuellen Verzeichnisses:", err)
 		panic(err)

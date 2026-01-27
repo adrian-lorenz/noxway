@@ -81,8 +81,10 @@ func main() {
 		panic(dberr)
 	} else {
 		global.Log.Infoln("Database connected")
-
 	}
+
+	// Start periodic database cleanup (every 5 minutes, keep max 5000 entries)
+	database.StartCleanupRoutine(5000, 5*time.Minute)
 
 	// init Router
 	if !global.Config.Debug {
@@ -148,9 +150,8 @@ func main() {
 			})
 			return
 		} else {
-			c.AbortWithStatus(404)
+			c.AbortWithStatus(403)
 			return
-
 		}
 	})
 	router.GET("/database/:span", func(c *gin.Context) {
@@ -184,12 +185,11 @@ func main() {
 			return
 		}
 		if !security.CheckWhitelists(middleware.GetIP(c)) {
-			c.AbortWithStatus(404)
+			c.AbortWithStatus(403)
 			return
 		}
 
 		c.JSON(200, global.Config)
-
 	})
 
 	router.GET("/config_auth", func(c *gin.Context) {
@@ -198,7 +198,7 @@ func main() {
 			return
 		}
 		if !security.CheckWhitelists(middleware.GetIP(c)) {
-			c.AbortWithStatus(404)
+			c.AbortWithStatus(403)
 			return
 		}
 		// geb nur usernamen und rolle zurück keine passwörter
@@ -218,7 +218,7 @@ func main() {
 			return
 		}
 		if !security.CheckWhitelists(middleware.GetIP(c)) {
-			c.AbortWithStatus(404)
+			c.AbortWithStatus(403)
 			return
 		}
 		var user auth.User
@@ -249,7 +249,7 @@ func main() {
 			}
 		}
 		if !setter {
-			c.AbortWithStatus(404)
+			c.AbortWithStatus(403)
 			return
 		}
 		type nAdminPwd struct {
@@ -306,7 +306,7 @@ func main() {
 
 	router.GET("/login", func(c *gin.Context) {
 		if !security.CheckWhitelists(middleware.GetIP(c)) {
-			c.AbortWithStatus(404)
+			c.AbortWithStatus(403)
 			return
 		}
 
@@ -343,6 +343,7 @@ func main() {
 			"issuer":   "api-gateway",
 			"username": username,
 			"role":     aUser.Role,
+			"exp":      time.Now().Add(8 * time.Hour).Unix(),
 		}
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 		tokenString, err := token.SignedString([]byte(os.Getenv("JWTSECRET")))
@@ -350,7 +351,7 @@ func main() {
 			c.AbortWithStatus(500)
 			return
 		}
-		fmt.Println("User logged in:", username, "Role:", aUser.Role, "IP:", middleware.GetIP(c))
+		global.Log.Infoln("User logged in:", username, "Role:", aUser.Role, "IP:", middleware.GetIP(c))
 		c.JSON(200, gin.H{"token": tokenString})
 	})
 
@@ -371,7 +372,7 @@ func main() {
 			})
 			return
 		} else {
-			c.AbortWithStatus(404)
+			c.AbortWithStatus(403)
 			return
 		}
 	})
@@ -385,7 +386,7 @@ func main() {
 			c.JSON(200, global.Services.Services)
 			return
 		} else {
-			c.AbortWithStatus(404)
+			c.AbortWithStatus(403)
 			return
 		}
 	})
@@ -407,7 +408,7 @@ func main() {
 			})
 			return
 		} else {
-			c.AbortWithStatus(404)
+			c.AbortWithStatus(403)
 			return
 		}
 	})
@@ -498,9 +499,9 @@ func routing(c *gin.Context) {
 	//check whitelist
 	if len(service.BasicEndpoint.Whitelist) > 0 {
 		if !slices.Contains(service.BasicEndpoint.Whitelist, middleware.GetIP(c)) {
-			c.AbortWithStatus(404)
+			c.AbortWithStatus(403)
+			return
 		}
-
 	}
 
 	if service.BasicEndpoint.Active && len(service.Endpoints) == 0 {
@@ -550,7 +551,6 @@ func routing(c *gin.Context) {
 					}
 				}
 				matchFound := false
-				fmt.Println("HeaderRouteMatches", e.HeaderRouteMatches)
 				for _, h := range e.HeaderRouteMatches {
 					if c.GetHeader(h.Header) == h.Value {
 						endpoint = e
@@ -559,7 +559,6 @@ func routing(c *gin.Context) {
 					}
 				}
 				if matchFound {
-					fmt.Println("MatchFound", endpoint)
 					break
 				} else {
 					if service.BasicEndpoint.Active {
@@ -630,7 +629,6 @@ func saveLog(litem database.Logtable, timemod LogTime) {
 	}
 }
 func headerExist(c *gin.Context, headerMatches []pservice.Header) bool {
-	fmt.Println("HeaderExist", headerMatches[0].Header)
 	for _, h := range headerMatches {
 		if c.GetHeader(h.Header) == h.Value {
 			return true
@@ -695,7 +693,7 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath st
 	timemod.EndTimePRE = time.Now()
 	timemod.StartTimeSRV = time.Now()
 	// Neuen HTTP-Request basierend auf der Methode des Original-Requests erstellen
-	req, err := http.NewRequest(c.Request.Method, newURL.String(), requestBody)
+	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, newURL.String(), requestBody)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
@@ -760,29 +758,25 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath st
 
 // Hilfsfunktion zum Kopieren von Headern
 func copyHeaders(src, dest http.Header, headerReplacements []pservice.HeaderReplace, headerAdds []pservice.Header) {
-	//header adds
-	for key, values := range src {
-		for _, value := range values {
-			dest.Add(key, value)
-		}
-	}
-	//header replacements
+	// Build replacement map first
 	replacementMap := make(map[string]string)
 	for _, hr := range headerReplacements {
 		replacementMap[hr.Header] = hr.NewValue
 	}
+
+	// Copy headers with replacements applied
 	for name, values := range src {
 		if newValue, ok := replacementMap[name]; ok {
 			dest.Set(name, newValue)
 		} else {
-			dest.Set(name, values[0])
-		}
-	}
-	//hinzufügen der Headers
-	if len(headerAdds) > 0 {
-		for _, h := range headerAdds {
-			dest.Add(h.Header, h.Value)
+			for _, value := range values {
+				dest.Add(name, value)
+			}
 		}
 	}
 
+	// Add additional headers
+	for _, h := range headerAdds {
+		dest.Add(h.Header, h.Value)
+	}
 }
