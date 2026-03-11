@@ -1,0 +1,47 @@
+{
+  "ssl": false,
+  "debug": false,
+  "excludedPaths": [],
+  "port": "8080",
+  "sslPort": "443",
+  "sslDomain": "",
+  "sslCertDays": 0,
+  "sslMail": "",
+  "cors": true,
+  "rateLimiter": true,
+  "bann": false,
+  "metric": false,
+  "prefix": "/v1/",
+  "pemCrt": "./certs/cert.pem",
+  "pemKey": "./certs/privkey.pem",
+  "systemWhitelist": [],
+  "systemWhitelistDNS": [],
+  "bannlist": [],
+  "rate": {
+    "rate": 500,
+    "window": 3600000000000
+  },
+  "rateWhitelist": [
+    "127.0.0.1"
+  ],
+  "corsAllowOrigins": [
+    "*"
+  ],
+  "corsAllowMethods": [
+    "GET",
+    "POST",
+    "PUT",
+    "DELETE",
+    "PATCH",
+    "OPTIONS"
+  ],
+  "corsAllowHeaders": [
+    "*"
+  ],
+  "corsAdvanced": true,
+  "exportLog": true,
+  "exportLogPath": "./log/noxway.log",
+  "hostnamecheck": false,
+  "hostname": "",
+  "name": "Noway API Gateway"
+}

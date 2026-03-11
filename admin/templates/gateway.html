@@ -1,0 +1,214 @@
+{{define "page_title"}}Gateway Config{{end}}
+{{define "gateway_name"}}{{.Config.Name}}{{end}}
+
+{{define "content"}}
+<div id="toast-area"></div>
+{{if .Success}}
+<div class="toast success" id="save-toast">{{.Success}}</div>
+<script>setTimeout(()=>document.getElementById('save-toast')?.remove(),3000)</script>
+{{end}}
+
+<form method="POST" action="/admin/gateway">
+  <div class="flex items-center justify-between mb-6">
+    <h2 style="font-size:16px;font-weight:600">Gateway Configuration</h2>
+    <button type="submit" class="btn btn-primary">Save Configuration</button>
+  </div>
+
+  <!-- Basic Settings -->
+  <div class="card mb-4">
+    <div class="card-title">Basic</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Gateway Name</label>
+        <input type="text" name="name" class="form-control" value="{{.Config.Name}}">
+      </div>
+      <div class="form-group">
+        <label>URL Prefix</label>
+        <input type="text" name="prefix" class="form-control" value="{{.Config.Prefix}}" placeholder="/v1/">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>HTTP Port</label>
+        <input type="text" name="port" class="form-control" value="{{.Config.Port}}">
+      </div>
+      <div class="form-group">
+        <label>HTTPS Port</label>
+        <input type="text" name="sslPort" class="form-control" value="{{.Config.SSLPort}}">
+      </div>
+    </div>
+    <div class="form-check">
+      <input type="checkbox" id="debug" name="debug" {{if .Config.Debug}}checked{{end}}>
+      <label for="debug">Debug Mode</label>
+    </div>
+  </div>
+
+  <!-- DNS Resolver -->
+  <div class="card mb-4">
+    <div class="card-title">DNS Resolver</div>
+    <div class="form-group">
+      <label>Custom DNS Resolver (optional)</label>
+      <input type="text" name="dnsResolver" class="form-control" value="{{.Config.DNSResolver}}" placeholder="1.1.1.1 oder 8.8.8.8:53 (leer = System-Default)">
+      <small class="text-muted text-sm">Wird für DNS-Whitelist-Checks und SSL-Zertifikat-DNS-Validierung verwendet</small>
+    </div>
+  </div>
+
+  <!-- Hostname -->
+  <div class="card mb-4">
+    <div class="card-title">Hostname Check</div>
+    <div class="form-check mb-2">
+      <input type="checkbox" id="hostnamecheck" name="hostnamecheck" {{if .Config.Hostnamecheck}}checked{{end}}
+        onchange="document.getElementById('hostname-field').style.display=this.checked?'block':'none'">
+      <label for="hostnamecheck">Enable Hostname Check</label>
+    </div>
+    <div id="hostname-field" style="display:{{if .Config.Hostnamecheck}}block{{else}}none{{end}}">
+      <div class="form-group">
+        <label>Hostname</label>
+        <input type="text" name="hostname" class="form-control" value="{{.Config.Hostname}}" placeholder="gateway.example.com">
+      </div>
+    </div>
+  </div>
+
+  <!-- SSL -->
+  <div class="card mb-4">
+    <div class="card-title">SSL / TLS</div>
+    <div class="form-check mb-2">
+      <input type="checkbox" id="ssl" name="ssl" {{if .Config.SSL}}checked{{end}}
+        onchange="document.getElementById('ssl-fields').style.display=this.checked?'block':'none'">
+      <label for="ssl">Enable SSL</label>
+    </div>
+    <div id="ssl-fields" style="display:{{if .Config.SSL}}block{{else}}none{{end}}">
+      <div class="form-row mb-2">
+        <div class="form-group">
+          <label>SSL Domain</label>
+          <input type="text" name="sslDomain" class="form-control" value="{{.Config.SSLDomain}}">
+        </div>
+        <div class="form-group">
+          <label>SSL Mail</label>
+          <input type="text" name="sslMail" class="form-control" value="{{.Config.SSLMail}}">
+        </div>
+      </div>
+      <div class="mt-2">
+        <button type="button" class="btn btn-secondary"
+          hx-post="/admin/htmx/cert/retrieve"
+          hx-target="#toast-area"
+          hx-swap="innerHTML">
+          🔒 Let's Encrypt Zertifikat abrufen
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logging -->
+  <div class="card mb-4">
+    <div class="card-title">Logging</div>
+    <div class="form-check mb-2">
+      <input type="checkbox" id="exportLog" name="exportLog" {{if .Config.ExportLog}}checked{{end}}
+        onchange="document.getElementById('log-path-field').style.display=this.checked?'block':'none'">
+      <label for="exportLog">Export Log to File</label>
+    </div>
+    <div id="log-path-field" style="display:{{if .Config.ExportLog}}block{{else}}none{{end}}">
+      <div class="form-group">
+        <label>Log Path</label>
+        <input type="text" name="exportLogPath" class="form-control" value="{{.Config.ExportLogPath}}">
+      </div>
+    </div>
+  </div>
+
+  <!-- Rate Limiter -->
+  <div class="card mb-4">
+    <div class="card-title">Rate Limiter</div>
+    <div class="form-check mb-2">
+      <input type="checkbox" id="rateLimiter" name="rateLimiter" {{if .Config.RateLimiter}}checked{{end}}
+        onchange="document.getElementById('rate-fields').style.display=this.checked?'block':'none'">
+      <label for="rateLimiter">Enable Rate Limiter</label>
+    </div>
+    <div id="rate-fields" style="display:{{if .Config.RateLimiter}}block{{else}}none{{end}}">
+      <div class="form-row mb-2">
+        <div class="form-group">
+          <label>Max Requests</label>
+          <input type="number" name="rateRate" class="form-control" value="{{.Config.Rate.Rate}}">
+        </div>
+        <div class="form-group">
+          <label>Window (minutes)</label>
+          <input type="number" name="rateWindowMin" class="form-control" value="{{rateWindowMin .Config.Rate.Window}}" step="1" min="1">
+        </div>
+      </div>
+      <div class="mb-2">
+        {{template "string_list_editor" dict "Title" "Rate Whitelist" "Desc" "Diese IPs sind vom Rate Limiter ausgenommen" "Key" "rateWhitelist" "Placeholder" "1.2.3.4" "Values" .Config.RateWhitelist}}
+      </div>
+    </div>
+  </div>
+
+  <!-- Access Control -->
+  <div class="card mb-4">
+    <div class="card-title">Access Control</div>
+    <div class="mb-2">
+      {{template "string_list_editor" dict "Title" "Internal Whitelist / Admin Access" "Desc" "Nur diese IPs haben Zugriff auf das Admin-Interface (leer = alle)" "Key" "systemWhitelist" "Placeholder" "1.2.3.4" "Values" .Config.SystemWhitelist}}
+    </div>
+    <div class="mb-2">
+      {{template "string_list_editor" dict "Title" "System Whitelist DNS" "Desc" "Hostnamen die per DNS aufgelöst und zur Whitelist hinzugefügt werden" "Key" "systemWhitelistDNS" "Placeholder" "myhost.example.com" "Values" .Config.SystemWhitelistDNS}}
+    </div>
+  </div>
+
+  <!-- CORS -->
+  <div class="card mb-4">
+    <div class="card-title">CORS</div>
+    <div class="form-check mb-2">
+      <input type="checkbox" id="cors" name="cors" {{if .Config.Cors}}checked{{end}}
+        onchange="document.getElementById('cors-fields').style.display=this.checked?'block':'none'">
+      <label for="cors">Enable CORS</label>
+    </div>
+    <div id="cors-fields" style="display:{{if .Config.Cors}}block{{else}}none{{end}}">
+      <div class="form-check mb-2">
+        <input type="checkbox" id="corsAdvanced" name="corsAdvanced" {{if .Config.CorsAdvanced}}checked{{end}}
+          onchange="document.getElementById('cors-advanced-fields').style.display=this.checked?'block':'none'">
+        <label for="corsAdvanced">Advanced CORS Settings</label>
+      </div>
+      <div id="cors-advanced-fields" style="display:{{if .Config.CorsAdvanced}}block{{else}}none{{end}}">
+        <div class="mb-2">
+          {{template "string_list_editor" dict "Title" "Allow Origins" "Desc" "Erlaubte Origins (leer = *)" "Key" "corsAllowOrigins" "Placeholder" "https://example.com" "Values" .Config.CorsAllowOrigins}}
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            {{template "string_list_editor" dict "Title" "Allow Methods" "Desc" "Erlaubte HTTP-Methoden" "Key" "corsAllowMethods" "Placeholder" "GET" "Values" .Config.CorsAllowMethods}}
+          </div>
+          <div class="form-group">
+            {{template "string_list_editor" dict "Title" "Allow Headers" "Desc" "Erlaubte Header" "Key" "corsAllowHeaders" "Placeholder" "Authorization" "Values" .Config.CorsAllowHeaders}}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex justify-between items-center">
+    <button type="submit" class="btn btn-primary">Save Configuration</button>
+  </div>
+</form>
+
+<style>
+  .list-editor { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .list-editor-header { padding: 8px 12px; background: #f8fafc; border-bottom: 1px solid var(--border); }
+  .list-editor-title { font-size: 12px; font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: .4px; display: block; }
+  .list-editor-desc { font-size: 11px; color: var(--text-muted); }
+  .list-table { width: 100%; border-collapse: collapse; }
+  .list-table th { font-size: 11px; color: var(--text-muted); font-weight: 600; padding: 6px 10px; text-transform: uppercase; background: #fafbfc; border-bottom: 1px solid var(--border); }
+  .list-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+  .list-table tbody tr:last-child td { border-bottom: none; }
+  .list-table tbody:empty::after { content: 'Keine Einträge'; display: table-cell; padding: 10px; color: var(--text-muted); font-size: 12px; font-style: italic; }
+  .form-control-sm { padding: 5px 8px; font-size: 12px; }
+  .mt-1 { margin: 6px 10px 8px; }
+</style>
+
+<script>
+function removeRow(btn) { btn.closest('tr').remove(); }
+function addStringRow(tableId, inputName, placeholder) {
+  const tbody = document.querySelector('#' + tableId + ' tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><input type="text" name="${inputName}" class="form-control form-control-sm" placeholder="${placeholder}"></td>`
+              + `<td><button type="button" class="btn btn-danger btn-icon btn-sm" onclick="removeRow(this)">✕</button></td>`;
+  tbody.appendChild(tr);
+  tr.querySelector('input').focus();
+}
+</script>
+{{end}}

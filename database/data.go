@@ -2,30 +2,51 @@ package database
 
 import (
 	"errors"
+	"log"
 	"os"
 	"time"
 
-	"github.com/adrian-lorenz/noxway/global"
-
-	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 var DB *gorm.DB = nil
 
-func ConnectDB(rootpath string) error {
-	db, err := gorm.Open(mysql.Open(os.Getenv("DATABASE")), &gorm.Config{})
+type ConfigEntry struct {
+	Key   string `gorm:"primaryKey;size:100"`
+	Value string `gorm:"type:text"`
+}
+
+func ConnectDB() error {
+	db, err := gorm.Open(postgres.Open(os.Getenv("DATABASE")), &gorm.Config{})
 	if err != nil {
-		global.Log.Error(err)
+		log.Println("database connection error:", err)
 		return errors.New("can't connect to database")
 	}
-	errCre := db.AutoMigrate(&Logtable{})
-	if errCre != nil {
-		return errCre
+	if err := db.AutoMigrate(&Logtable{}, &ConfigEntry{}); err != nil {
+		return err
 	}
-
 	DB = db
 	return nil
+}
+
+func LoadConfigEntry(key string) (string, error) {
+	if DB == nil {
+		return "", errors.New("database not initialized")
+	}
+	var entry ConfigEntry
+	if err := DB.First(&entry, "key = ?", key).Error; err != nil {
+		return "", err
+	}
+	return entry.Value, nil
+}
+
+func SaveConfigEntry(key, value string) error {
+	if DB == nil {
+		return errors.New("database not initialized")
+	}
+	entry := ConfigEntry{Key: key, Value: value}
+	return DB.Save(&entry).Error
 }
 
 // CleanupOldLogs deletes oldest entries when count exceeds maxEntries
@@ -41,28 +62,52 @@ func CleanupOldLogs(maxEntries int) error {
 
 	if count > int64(maxEntries) {
 		deleteCount := count - int64(maxEntries)
-		// Delete oldest entries by selecting the oldest IDs
 		subQuery := DB.Model(&Logtable{}).Select("id").Order("created ASC").Limit(int(deleteCount))
 		if err := DB.Where("id IN (?)", subQuery).Delete(&Logtable{}).Error; err != nil {
 			return err
 		}
-		global.Log.Infof("Cleaned up %d old log entries", deleteCount)
+		log.Printf("Cleaned up %d old log entries", deleteCount)
 	}
 	return nil
 }
 
-// StartCleanupRoutine starts a background goroutine that periodically cleans up old logs
-func StartCleanupRoutine(maxEntries int, interval time.Duration) {
+// DeleteLogsOlderThan deletes all log entries older than the given retention duration.
+func DeleteLogsOlderThan(retention time.Duration) error {
+	if DB == nil {
+		return errors.New("database not initialized")
+	}
+	cutoff := time.Now().Add(-retention)
+	result := DB.Where("created < ?", cutoff).Delete(&Logtable{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected > 0 {
+		log.Printf("Retention cleanup: deleted %d log entries older than %v", result.RowsAffected, retention)
+	}
+	return nil
+}
+
+// StartCleanupRoutine starts a background goroutine that periodically cleans up old logs.
+// maxEntries: hard cap on total row count (0 = disabled)
+// retention: delete entries older than this duration (0 = disabled)
+func StartCleanupRoutine(maxEntries int, retention time.Duration, interval time.Duration) {
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for range ticker.C {
-			if err := CleanupOldLogs(maxEntries); err != nil {
-				global.Log.Errorf("Log cleanup failed: %v", err)
+			if retention > 0 {
+				if err := DeleteLogsOlderThan(retention); err != nil {
+					log.Printf("Retention cleanup failed: %v", err)
+				}
+			}
+			if maxEntries > 0 {
+				if err := CleanupOldLogs(maxEntries); err != nil {
+					log.Printf("Log cleanup failed: %v", err)
+				}
 			}
 		}
 	}()
-	global.Log.Infof("Started log cleanup routine (max %d entries, every %v)", maxEntries, interval)
+	log.Printf("Started log cleanup routine (max %d entries, retention %v, every %v)", maxEntries, retention, interval)
 }
 
 type Logtable struct {

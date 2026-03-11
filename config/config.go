@@ -36,6 +36,7 @@ type ConfigStruct struct {
 	Hostnamecheck      bool     `json:"hostnamecheck"`
 	Hostname           string   `json:"hostname"`
 	Name               string   `json:"name"`
+	DNSResolver        string   `json:"dnsResolver"`
 }
 
 type Rates struct {

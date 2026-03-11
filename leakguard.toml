@@ -1,0 +1,9 @@
+[scan]
+# Only scan Go source files and config files; skip generated/vendor dirs
+extensions = [".go", ".env.example", ".yml", ".yaml", ".toml", ".md"]
+exclude_paths = ["vendor", "build", "testservices"]
+exclude_files = []
+
+[rules]
+# .env.example contains placeholder values only — suppress env-file rule
+disable = []

@@ -1,14 +1,17 @@
 package global
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/adrian-lorenz/noxway/auth"
 	"github.com/adrian-lorenz/noxway/config"
+	"github.com/adrian-lorenz/noxway/database"
 	"github.com/adrian-lorenz/noxway/pservice"
 
 	log "github.com/sirupsen/logrus"
@@ -44,120 +47,146 @@ func GetAuth() auth.AuthStruct {
 	return Auth
 }
 
+// safeLogPath returns true when the path does not escape via path traversal.
+func safeLogPath(p string) bool {
+	if strings.Contains(p, "..") {
+		return false
+	}
+	cleaned := filepath.Clean(p)
+	return !strings.Contains(cleaned, "..")
+}
+
 func InitLogger() {
 	Log = log.New()
 	Log.SetLevel(log.DebugLevel)
 
 	if Config.ExportLog {
-		file, err := os.OpenFile(Config.ExportLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		logPath := Config.ExportLogPath
+		if !safeLogPath(logPath) {
+			fmt.Println("Warning: ExportLogPath contains path traversal, falling back to stderr")
+			Log.SetOutput(os.Stderr)
+			return
+		}
+		// Ensure parent directory exists
+		_ = os.MkdirAll(filepath.Dir(logPath), 0755)
+		file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 		if err == nil {
-
 			Log.SetOutput(io.MultiWriter(file, os.Stderr))
 		} else {
 			Log.Info("Failed to log to file, using default stderr")
 		}
 	} else {
-
 		Log.SetOutput(os.Stderr)
 	}
 }
+
 func SetGlobConfig(newConfig config.ConfigStruct) {
-	mu.Lock() // Sperren vor der Aktualisierung
+	mu.Lock()
 	Config = newConfig
-	mu.Unlock() // Freigeben nach der Aktualisierung
+	mu.Unlock()
 }
 
 func SetSrvConfig(newConfig pservice.Services) {
-	mu.Lock() // Sperren vor der Aktualisierung
+	mu.Lock()
 	Services = newConfig
-	mu.Unlock() // Freigeben nach der Aktualisierung
+	mu.Unlock()
+}
+
+func SetAuthConfig(newConfig auth.AuthStruct) {
+	mu.Lock()
+	Auth = newConfig
+	mu.Unlock()
 }
 
 func LoadAllConfig() {
 	var err error
 	Path, err = os.Getwd()
 	if err != nil {
-		fmt.Println("Fehler beim Ermitteln des aktuellen Verzeichnisses:", err)
+		fmt.Println("Error getting working directory:", err)
 		panic(err)
 	}
 
-	gPath := filepath.Join(Path, "config", "config_global.json")
-	sPath := filepath.Join(Path, "config", "config_service.json")
-	aPath := filepath.Join(Path, "config", "config_auth.json")
+	CheckConfigGlob()
+	CheckConfigService()
+	CheckConfigAuth()
 
-	CheckConfigGlob(gPath)
-	CheckConfigService(sPath)
-	CheckConfigAuth(aPath)
-
-	authStruct, err := auth.LoadConfig(aPath)
+	val, err := database.LoadConfigEntry("global")
 	if err != nil {
-		fmt.Println("Fehler beim Laden der Konfiguration:", err)
+		fmt.Println("Error loading global config:", err)
+		panic(err)
+	}
+	var cfg config.ConfigStruct
+	if err := json.Unmarshal([]byte(val), &cfg); err != nil {
+		fmt.Println("Error parsing global config:", err)
 		panic(err)
 	}
 
-	configStruct, err := config.LoadConfig(gPath)
+	val, err = database.LoadConfigEntry("services")
 	if err != nil {
-		fmt.Println("Fehler beim Laden der Konfiguration:", err)
+		fmt.Println("Error loading services config:", err)
 		panic(err)
 	}
-	serviceStruct, err := pservice.LoadConfig(sPath)
-	if err != nil {
-		fmt.Println("Fehler beim Laden der Konfiguration:", err)
+	var svcs pservice.Services
+	if err := json.Unmarshal([]byte(val), &svcs); err != nil {
+		fmt.Println("Error parsing services config:", err)
 		panic(err)
 	}
-	fmt.Println("Config loaded")
-	SetSrvConfig(*serviceStruct)
-	SetGlobConfig(*configStruct)
-	SetAuthConfig(*authStruct)
+
+	val, err = database.LoadConfigEntry("auth")
+	if err != nil {
+		fmt.Println("Error loading auth config:", err)
+		panic(err)
+	}
+	var authCfg auth.AuthStruct
+	if err := json.Unmarshal([]byte(val), &authCfg); err != nil {
+		fmt.Println("Error parsing auth config:", err)
+		panic(err)
+	}
+
+	fmt.Println("Config loaded from database")
+	SetSrvConfig(svcs)
+	SetGlobConfig(cfg)
+	SetAuthConfig(authCfg)
 }
 
 func SaveGlobalConfig() {
-	mu.Lock() // Sperren vor der Aktualisierung
-	data, err := config.MarshalConfig(Config)
+	mu.Lock()
+	defer mu.Unlock()
+	data, err := json.Marshal(Config)
 	if err != nil {
-		fmt.Println("Fehler beim Speichern der Konfiguration:", err)
+		fmt.Println("Error marshaling global config:", err)
 		panic(err)
 	}
-	err = os.WriteFile(filepath.Join(Path, "config", "config_global.json"), data, 0666)
-	if err != nil {
-		fmt.Println("Fehler beim Speichern der Konfiguration:", err)
+	if err := database.SaveConfigEntry("global", string(data)); err != nil {
+		fmt.Println("Error saving global config:", err)
 		panic(err)
 	}
-	mu.Unlock() // Freigeben nach der Aktualisierung
 }
 
 func SaveServiceConfig() {
-	mu.Lock() // Sperren vor der Aktualisierung
-	data, err := pservice.MarshalConfig(Services)
+	mu.Lock()
+	defer mu.Unlock()
+	data, err := json.Marshal(Services)
 	if err != nil {
-		fmt.Println("Fehler beim Speichern der Konfiguration:", err)
+		fmt.Println("Error marshaling services config:", err)
 		panic(err)
 	}
-	err = os.WriteFile(filepath.Join(Path, "config", "config_service.json"), data, 0666)
-	if err != nil {
-		fmt.Println("Fehler beim Speichern der Konfiguration:", err)
+	if err := database.SaveConfigEntry("services", string(data)); err != nil {
+		fmt.Println("Error saving services config:", err)
 		panic(err)
 	}
-	mu.Unlock() // Freigeben nach der Aktualisierung
 }
 
 func SaveAuthConfig() {
-	mu.Lock() // Sperren vor der Aktualisierung
-	data, err := auth.MarshalConfig(Auth)
+	mu.Lock()
+	defer mu.Unlock()
+	data, err := json.Marshal(Auth)
 	if err != nil {
-		fmt.Println("Fehler beim Speichern der Konfiguration:", err)
+		fmt.Println("Error marshaling auth config:", err)
 		panic(err)
 	}
-	err = os.WriteFile(filepath.Join(Path, "config", "config_auth.json"), data, 0666)
-	if err != nil {
-		fmt.Println("Fehler beim Speichern der Konfiguration:", err)
+	if err := database.SaveConfigEntry("auth", string(data)); err != nil {
+		fmt.Println("Error saving auth config:", err)
 		panic(err)
 	}
-	mu.Unlock() // Freigeben nach der Aktualisierung
-}
-
-func SetAuthConfig(newConfig auth.AuthStruct) {
-	mu.Lock() // Sperren vor der Aktualisierung
-	Auth = newConfig
-	mu.Unlock() // Freigeben nach der Aktualisierung
 }

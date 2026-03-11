@@ -17,7 +17,7 @@ func CheckWhitelists(ip string) bool {
 	}
 	if len(global.Config.SystemWhitelistDNS) > 0 {
 		for _, w := range global.Config.SystemWhitelistDNS {
-			dnsIp, err := tools.GetDnsIP(w)
+			dnsIp, err := tools.GetDnsIPWithResolver(w, global.Config.DNSResolver)
 			if err != nil {
 				return false
 			}

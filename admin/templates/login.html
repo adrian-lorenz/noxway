@@ -1,0 +1,49 @@
+{{define "login"}}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Noxway Login</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f7; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-card { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 40px; width: 100%; max-width: 380px; box-shadow: 0 4px 24px rgba(0,0,0,.06); }
+    .login-logo { text-align: center; margin-bottom: 28px; }
+    .login-logo h1 { font-size: 24px; font-weight: 700; color: #1e2235; }
+    .login-logo p { color: #6b7280; font-size: 13px; margin-top: 4px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 5px; }
+    input { width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px; color: #2d3142; transition: border-color .15s; }
+    input:focus { outline: none; border-color: #4f7ef8; }
+    .btn { width: 100%; padding: 10px; background: #4f7ef8; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: background .15s; }
+    .btn:hover { background: #3a6ae0; }
+    .error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; border-radius: 6px; padding: 10px 12px; font-size: 13px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="login-logo">
+      <h1>Noxway</h1>
+      <p>API Gateway Admin</p>
+    </div>
+    {{if .Error}}
+    <div class="error" id="error-msg">{{.Error}}</div>
+    {{end}}
+    <div id="error-msg"></div>
+    <form hx-post="/admin/login" hx-target="#error-msg" hx-swap="innerHTML">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" name="username" autofocus autocomplete="username" required>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn">Login</button>
+    </form>
+  </div>
+</body>
+</html>
+{{end}}

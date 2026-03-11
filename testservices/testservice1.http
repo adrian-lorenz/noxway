@@ -1,0 +1,53 @@
+### Noxway — Testservice 1
+### Direkt (Backend, bypasses Gateway)
+
+@base = http://127.0.0.1:8080
+@prefix = {{base}}/v1
+
+# ── Direct backend call ───────────────────────────────────────────────────────
+
+### Direct — GET /testservice1
+GET {{base}}/testservice1
+
+###
+
+# ── Via Gateway (prefix /v1/) ─────────────────────────────────────────────────
+
+### Gateway — GET /v1/testservice1  (basic endpoint, no extra headers)
+GET {{prefix}}/testservice1
+
+###
+
+### Gateway — GET /v1/testservice1  with Authorization header (JWT)
+GET {{prefix}}/testservice1
+Authorization: Bearer <your-token-here>
+
+###
+
+### Gateway — GET /v1/testservice1  rate limiter check (rapid repeat)
+GET {{prefix}}/testservice1
+X-Forwarded-For: 10.99.99.99
+
+###
+
+# ── WAF probes (should return 403) ───────────────────────────────────────────
+
+### WAF — SQLi in query
+GET {{prefix}}/testservice1?id=1%20UNION%20SELECT%201%2C2%2C3
+
+###
+
+### WAF — XSS in query
+GET {{prefix}}/testservice1?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E
+
+###
+
+### WAF — Path traversal
+GET {{prefix}}/testservice1?file=../../etc/passwd
+
+###
+
+### WAF — Command injection
+GET {{prefix}}/testservice1?cmd=id%20%26%26%20whoami
+
+###

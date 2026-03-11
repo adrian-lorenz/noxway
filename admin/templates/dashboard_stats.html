@@ -1,0 +1,93 @@
+{{define "dashboard_stats"}}
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{.TotalRequests}}</div>
+    <div class="stat-label">Total Requests</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{fmtMs .AvgResponseMs}} ms</div>
+    <div class="stat-label">Avg Response Time</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{.RoutedCount}}</div>
+    <div class="stat-label">Routed</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:{{if gt .ErrorCount 0}}var(--danger){{else}}var(--success){{end}}">{{.ErrorCount}}</div>
+    <div class="stat-label">Errors (4xx/5xx)</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+  <!-- Top IPs -->
+  <div class="card">
+    <div class="card-title">Top IPs</div>
+    {{if .TopIPs}}
+    <table style="width:100%">
+      {{range .TopIPs}}
+      <tr>
+        <td class="font-mono text-sm">{{.IP}}</td>
+        <td style="text-align:right"><span class="badge badge-blue">{{.Count}}</span></td>
+      </tr>
+      {{end}}
+    </table>
+    {{else}}
+    <p class="text-muted text-sm">No data</p>
+    {{end}}
+  </div>
+  <!-- Top Services -->
+  <div class="card">
+    <div class="card-title">Top Services</div>
+    {{if .TopServices}}
+    <table style="width:100%">
+      {{range .TopServices}}
+      <tr>
+        <td class="font-mono text-sm">{{.Name}}</td>
+        <td style="text-align:right;color:var(--text-muted);font-size:12px">{{fmtMs .AvgTime}}ms</td>
+        <td style="text-align:right"><span class="badge badge-blue">{{.Count}}</span></td>
+      </tr>
+      {{end}}
+    </table>
+    {{else}}
+    <p class="text-muted text-sm">No data</p>
+    {{end}}
+  </div>
+</div>
+
+<!-- Chart -->
+<div class="card">
+  <div class="card-title">Requests over Time</div>
+  <canvas id="req-chart" height="80"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+  var existing = Chart.getChart('req-chart');
+  if (existing) existing.destroy();
+  new Chart(document.getElementById('req-chart'), {
+    type: 'line',
+    data: {
+      labels: {{.ChartLabels}},
+      datasets: [{
+        label: 'Requests',
+        data: {{.ChartData}},
+        borderColor: '#4f7ef8',
+        backgroundColor: 'rgba(79,126,248,.1)',
+        tension: .3,
+        fill: true,
+        pointRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 } },
+        x: { ticks: { maxTicksLimit: 8 } }
+      }
+    }
+  });
+})();
+</script>
+{{end}}

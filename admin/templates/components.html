@@ -1,0 +1,68 @@
+{{define "kv_editor"}}
+<div class="list-editor">
+  <div class="list-editor-header">
+    <span class="list-editor-title">{{.Title}}</span>
+    <span class="list-editor-desc">{{.Desc}}</span>
+  </div>
+  <table class="list-table" id="tbl-{{.HKey}}">
+    <thead><tr><th>{{.KLabel}}</th><th>{{.VLabel}}</th><th style="width:40px"></th></tr></thead>
+    <tbody>
+      {{range .Rows}}
+      <tr>
+        <td><input type="text" name="{{$.HKey}}[]" value="{{.Header}}" class="form-control form-control-sm" placeholder="Header-Name"></td>
+        <td><input type="text" name="{{$.VKey}}[]" value="{{.Value}}" class="form-control form-control-sm" placeholder="Wert"></td>
+        <td><button type="button" class="btn btn-danger btn-icon btn-sm" onclick="removeRow(this)">✕</button></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  <button type="button" class="btn btn-secondary btn-sm mt-1"
+    onclick="addKVRow('tbl-{{.HKey}}','{{.HKey}}[]','{{.VKey}}[]')">+ Hinzufügen</button>
+</div>
+{{end}}
+
+{{define "hreplace_editor"}}
+<div class="list-editor">
+  <div class="list-editor-header">
+    <span class="list-editor-title">Header ersetzen</span>
+    <span class="list-editor-desc">Header-Werte im Request ersetzen bevor er weitergeleitet wird</span>
+  </div>
+  <table class="list-table" id="tbl-hr">
+    <thead><tr><th>Header</th><th>Alter Wert</th><th>Neuer Wert</th><th style="width:40px"></th></tr></thead>
+    <tbody>
+      {{range .}}
+      <tr>
+        <td><input type="text" name="HR_Header[]" value="{{.Header}}" class="form-control form-control-sm" placeholder="Header-Name"></td>
+        <td><input type="text" name="HR_Value[]" value="{{.Value}}" class="form-control form-control-sm" placeholder="Alter Wert"></td>
+        <td><input type="text" name="HR_NewValue[]" value="{{.NewValue}}" class="form-control form-control-sm" placeholder="Neuer Wert"></td>
+        <td><button type="button" class="btn btn-danger btn-icon btn-sm" onclick="removeRow(this)">✕</button></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  <button type="button" class="btn btn-secondary btn-sm mt-1"
+    onclick="addHRRow('tbl-hr')">+ Hinzufügen</button>
+</div>
+{{end}}
+
+{{define "string_list_editor"}}
+<div class="list-editor">
+  <div class="list-editor-header">
+    <span class="list-editor-title">{{.Title}}</span>
+    <span class="list-editor-desc">{{.Desc}}</span>
+  </div>
+  <table class="list-table" id="tbl-{{.Key}}">
+    <thead><tr><th>Wert</th><th style="width:40px"></th></tr></thead>
+    <tbody>
+      {{range .Values}}
+      <tr>
+        <td><input type="text" name="{{$.Key}}[]" value="{{.}}" class="form-control form-control-sm" placeholder="{{$.Placeholder}}"></td>
+        <td><button type="button" class="btn btn-danger btn-icon btn-sm" onclick="removeRow(this)">✕</button></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  <button type="button" class="btn btn-secondary btn-sm mt-1"
+    onclick="addStringRow('tbl-{{.Key}}','{{.Key}}[]','{{.Placeholder}}')">+ Hinzufügen</button>
+</div>
+{{end}}

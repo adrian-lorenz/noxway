@@ -3,10 +3,8 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
-	"embed"
 	"fmt"
 	"io"
-	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,8 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adrian-lorenz/noxway/admin"
 	"github.com/adrian-lorenz/noxway/certs"
 	"github.com/adrian-lorenz/noxway/security"
+	"github.com/adrian-lorenz/noxway/waf"
+
+	"github.com/gorilla/websocket"
 
 	"github.com/adrian-lorenz/noxway/middleware"
 	"github.com/adrian-lorenz/noxway/pservice"
@@ -33,12 +35,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-//go:embed web/assets/*
-var staticFiles embed.FS
-
-//go:embed web/index.html
-var indexHTML []byte
-
 type LogTime struct {
 	StartTimePRE time.Time
 	StartTimeSRV time.Time
@@ -52,8 +48,6 @@ type LogTime struct {
 
 func main() {
 
-	global.LoadAllConfig() // thread safe
-	global.InitLogger()
 	if _, err := os.Stat(".env"); err == nil {
 		errD := godotenv.Load()
 		if errD != nil {
@@ -61,9 +55,20 @@ func main() {
 		}
 	}
 	if os.Getenv("DATABASE") == "" {
-		global.Log.Errorln("DATABASE not set")
+		fmt.Println("DATABASE env var not set")
 		panic("DATABASE not set")
 	}
+	// Connect DB first — config is stored in DB
+	dberr := database.ConnectDB()
+	if dberr != nil {
+		fmt.Println("Fehler beim Verbinden zur Datenbank:", dberr)
+		panic(dberr)
+	}
+	fmt.Println("Database connected")
+
+	global.LoadAllConfig() // loads from DB (creates defaults if first run)
+	global.InitLogger()
+
 	/*
 		_, err := certs.CertPreCheck("server.noa-x.de")
 		if err != nil {
@@ -74,17 +79,9 @@ func main() {
 		Rate:   global.Config.Rate.Rate,
 		Window: global.Config.Rate.Window,
 	}
-	//init Databases
-	dberr := database.ConnectDB(global.Path)
-	if dberr != nil {
-		global.Log.Errorln("Fehler beim Verbinden zur Datenbank:", dberr)
-		panic(dberr)
-	} else {
-		global.Log.Infoln("Database connected")
-	}
 
-	// Start periodic database cleanup (every 5 minutes, keep max 5000 entries)
-	database.StartCleanupRoutine(5000, 5*time.Minute)
+	// Cleanup: max 5000 entries, delete logs older than 30 days, run every 5 minutes
+	database.StartCleanupRoutine(5000, 30*24*time.Hour, 5*time.Minute)
 
 	// init Router
 	if !global.Config.Debug {
@@ -118,20 +115,12 @@ func main() {
 		router.Use(middleware.RateLimiterMiddleware(RateConfig))
 	}
 
-	staticFS, eerr := fs.Sub(staticFiles, "web/assets")
-
-	if eerr != nil {
-		global.Log.Errorln("Error while embedding static files:", eerr)
-	}
-
-	router.StaticFS("/assets", http.FS(staticFS))
-
-	router.GET("/web/*any", func(c *gin.Context) {
-		c.Data(http.StatusOK, "text/html; charset=utf-8", indexHTML)
-	})
+	admin.RegisterRoutes(router)
 
 	router.GET("/testservice1", testservices.Testservice1)
 	router.GET("/testservice2", testservices.Testservice2)
+	router.GET("/testservice3", testservices.Testservice3)
+	router.GET("/testservice3/info", testservices.Testservice3Info)
 
 	router.POST("/retiveCert", certs.RetiveCert)
 
@@ -504,6 +493,34 @@ func routing(c *gin.Context) {
 		}
 	}
 
+	// WAF check
+	if service.WAF.Enabled {
+		maxKB := service.WAF.MaxBodyKB
+		if maxKB <= 0 {
+			maxKB = 512
+		}
+		var bodyStr string
+		if service.WAF.BlockSQLi || service.WAF.BlockXSS || service.WAF.BlockCommandInj {
+			if c.Request.ContentLength > 0 && c.Request.ContentLength <= int64(maxKB*1024) {
+				bodyBytes, _ := io.ReadAll(io.LimitReader(c.Request.Body, int64(maxKB*1024)))
+				bodyStr = string(bodyBytes)
+				// restore body for processRequest
+				c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			} else if service.WAF.BlockLargeBody && c.Request.ContentLength > int64(maxKB*1024) {
+				global.Log.Warnln("WAF: blocked oversized body from", middleware.GetIP(c))
+				litem.Message = "WAF: body too large"
+				c.AbortWithStatus(413)
+				return
+			}
+		}
+		if reason := waf.Check(service.WAF, c.Request.URL.Path, c.Request.URL.RawQuery, bodyStr); reason != nil {
+			global.Log.Warnln("WAF: blocked request from", middleware.GetIP(c), "rule:", reason.Rule, "match:", reason.Matched)
+			litem.Message = "WAF:" + reason.Rule
+			c.AbortWithStatus(403)
+			return
+		}
+	}
+
 	if service.BasicEndpoint.Active && len(service.Endpoints) == 0 {
 		//Basic Enpoint Precheck
 		litem.HeaderRouting = true
@@ -673,7 +690,130 @@ func JWTCheck(c *gin.Context, jw pservice.JWTPreCheck) bool {
 	return false
 }
 
+func isWebSocketRequest(r *http.Request) bool {
+	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
+}
+
+var wsUpgrader = websocket.Upgrader{
+	// Validate Origin against the configured CORS allow-origins.
+	// "*" permits any origin (default open gateway behaviour).
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true // non-browser client, no origin to check
+		}
+		cfg := global.GetConfig()
+		for _, allowed := range cfg.CorsAllowOrigins {
+			if allowed == "*" || allowed == origin {
+				return true
+			}
+		}
+		return false
+	},
+}
+
+func proxyWebSocket(c *gin.Context, endpoint pservice.Endpoint, remainingPath string, logItem *database.Logtable, timemod *LogTime) {
+	targetURL, err := url.Parse(endpoint.Endpoint)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "invalid endpoint URL"})
+		return
+	}
+	base := strings.TrimRight(targetURL.Path, "/")
+	if remainingPath != "" {
+		targetURL.Path = base + "/" + remainingPath
+	} else {
+		targetURL.Path = base
+	}
+	if c.Request.URL.RawQuery != "" {
+		targetURL.RawQuery = c.Request.URL.RawQuery
+	}
+	switch targetURL.Scheme {
+	case "https":
+		targetURL.Scheme = "wss"
+	default:
+		targetURL.Scheme = "ws"
+	}
+
+	// Forward request headers to backend (skip WS handshake headers — gorilla adds them)
+	reqHeaders := http.Header{}
+	for k, v := range c.Request.Header {
+		switch strings.ToLower(k) {
+		case "upgrade", "connection", "sec-websocket-key", "sec-websocket-version",
+			"sec-websocket-extensions", "sec-websocket-protocol":
+			continue
+		}
+		reqHeaders[k] = v
+	}
+
+	var dialer *websocket.Dialer
+	if !endpoint.VerifySSL {
+		dialer = &websocket.Dialer{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	} else {
+		dialer = websocket.DefaultDialer
+	}
+
+	backendConn, _, err := dialer.Dial(targetURL.String(), reqHeaders)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "ws backend error: " + err.Error()})
+		return
+	}
+	defer backendConn.Close()
+
+	clientConn, err := wsUpgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+	defer clientConn.Close()
+
+	// Limit message size to 4 MB on both sides to prevent memory exhaustion.
+	const wsMsgLimit = 4 * 1024 * 1024
+	clientConn.SetReadLimit(wsMsgLimit)
+	backendConn.SetReadLimit(wsMsgLimit)
+
+	logItem.Routed = true
+	logItem.StatusCode = http.StatusSwitchingProtocols
+	timemod.EndTimePRE = time.Now()
+	timemod.StartTimeSRV = time.Now()
+
+	errc := make(chan error, 2)
+	go func() {
+		for {
+			msgType, msg, err := clientConn.ReadMessage()
+			if err != nil {
+				errc <- err
+				return
+			}
+			if err := backendConn.WriteMessage(msgType, msg); err != nil {
+				errc <- err
+				return
+			}
+		}
+	}()
+	go func() {
+		for {
+			msgType, msg, err := backendConn.ReadMessage()
+			if err != nil {
+				errc <- err
+				return
+			}
+			if err := clientConn.WriteMessage(msgType, msg); err != nil {
+				errc <- err
+				return
+			}
+		}
+	}()
+	<-errc
+	timemod.EndTimeSRV = time.Now()
+}
+
 func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath string, logItem *database.Logtable, timemod *LogTime) {
+	if endpoint.WebSocket && isWebSocketRequest(c.Request) {
+		proxyWebSocket(c, endpoint, remainingPath, logItem, timemod)
+		return
+	}
+
 	// URL zusammenbauen
 	global.Log.Infoln("BaseEndpoint:", endpoint.Endpoint)
 	newURL, _ := url.Parse(endpoint.Endpoint)
@@ -756,15 +896,22 @@ func processRequest(c *gin.Context, endpoint pservice.Endpoint, remainingPath st
 
 }
 
-// Hilfsfunktion zum Kopieren von Headern
+// sanitizeHeader removes CRLF and null bytes from header names/values
+// to prevent HTTP response splitting (header injection).
+func sanitizeHeader(s string) string {
+	s = strings.ReplaceAll(s, "\r", "")
+	s = strings.ReplaceAll(s, "\n", "")
+	s = strings.ReplaceAll(s, "\x00", "")
+	return strings.TrimSpace(s)
+}
+
+// copyHeaders copies headers from src to dest, applying configured replacements and additions.
 func copyHeaders(src, dest http.Header, headerReplacements []pservice.HeaderReplace, headerAdds []pservice.Header) {
-	// Build replacement map first
 	replacementMap := make(map[string]string)
 	for _, hr := range headerReplacements {
-		replacementMap[hr.Header] = hr.NewValue
+		replacementMap[hr.Header] = sanitizeHeader(hr.NewValue)
 	}
 
-	// Copy headers with replacements applied
 	for name, values := range src {
 		if newValue, ok := replacementMap[name]; ok {
 			dest.Set(name, newValue)
@@ -775,8 +922,11 @@ func copyHeaders(src, dest http.Header, headerReplacements []pservice.HeaderRepl
 		}
 	}
 
-	// Add additional headers
 	for _, h := range headerAdds {
-		dest.Add(h.Header, h.Value)
+		key := sanitizeHeader(h.Header)
+		val := sanitizeHeader(h.Value)
+		if key != "" {
+			dest.Add(key, val)
+		}
 	}
 }

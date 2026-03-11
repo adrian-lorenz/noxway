@@ -1,0 +1,33 @@
+{{define "page_title"}}Dashboard{{end}}
+{{define "gateway_name"}}{{.GatewayName}}{{end}}
+
+{{define "content"}}
+<div class="flex items-center justify-between mb-6">
+  <div class="flex items-center gap-2">
+    <label class="text-muted text-sm">Zeitraum:</label>
+    <select id="span-select" name="span" class="form-control" style="width:auto;padding:5px 10px"
+      hx-get="/admin/htmx/dashboard"
+      hx-target="#dashboard-stats"
+      hx-swap="innerHTML"
+      hx-include="#span-select">
+      <option value="hour" {{if eq .Span "hour"}}selected{{end}}>Letzte Stunde</option>
+      <option value="day" {{if eq .Span "day"}}selected{{end}}>Letzter Tag</option>
+      <option value="all" {{if eq .Span "all"}}selected{{end}}>Alle</option>
+    </select>
+  </div>
+  <button class="btn btn-secondary btn-sm"
+    hx-get="/admin/htmx/dashboard"
+    hx-target="#dashboard-stats"
+    hx-swap="innerHTML"
+    hx-include="#span-select">
+    ↺ Refresh
+  </button>
+</div>
+
+<div id="dashboard-stats"
+  hx-get="/admin/htmx/dashboard?span=hour"
+  hx-trigger="load"
+  hx-swap="innerHTML">
+  <div class="text-muted text-sm">Loading...</div>
+</div>
+{{end}}

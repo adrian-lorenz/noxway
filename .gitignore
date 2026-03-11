@@ -1,0 +1,32 @@
+# Environment — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Build output
+noxway
+build/
+
+# Logs
+log/
+*.log
+
+# TLS certificates
+certs/*.pem
+certs/*.key
+certs/*.crt
+certs/*.cert
+
+# Go tooling
+coverage.out
+test-results.xml
+*.test
+
+# OS
+.DS_Store
+Thumbs.db
+
+.idea/
+.vscode/
+.claude/
+

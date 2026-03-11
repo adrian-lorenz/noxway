@@ -1,0 +1,112 @@
+{{define "waf_edit"}}
+<div class="card" style="border:2px solid var(--accent)">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h3 style="font-size:15px;font-weight:600">WAF – {{.ServiceName}}</h3>
+      <p class="text-muted text-sm" style="margin-top:2px">Web Application Firewall für diesen Service</p>
+    </div>
+    <button class="btn btn-secondary btn-sm"
+      hx-get="/admin/htmx/endpoint/cancel"
+      hx-target="#editor"
+      hx-swap="innerHTML">✕ Schließen</button>
+  </div>
+
+  <form hx-post="/admin/htmx/waf/save/{{.ServiceUUID}}"
+        hx-target="#toast-area"
+        hx-swap="innerHTML"
+        hx-on::after-request="document.querySelector('#editor').innerHTML=''">
+
+    <!-- Master toggle -->
+    <div class="card mb-4" style="background:{{if .WAF.Enabled}}#f0fdf4{{else}}#f8fafc{{end}};border:1px solid {{if .WAF.Enabled}}#86efac{{else}}var(--border){{end}}">
+      <div class="form-check">
+        <input type="checkbox" id="waf-enabled" name="Enabled" {{if .WAF.Enabled}}checked{{end}}
+          onchange="document.getElementById('waf-rules').style.opacity=this.checked?'1':'0.4'">
+        <label for="waf-enabled" style="font-size:14px;font-weight:600">WAF aktivieren</label>
+      </div>
+      <p class="text-muted text-sm" style="margin-top:4px;margin-left:24px">
+        Alle eingehenden Requests werden auf Angriffsmuster geprüft. Bei Treffer → 403.
+      </p>
+    </div>
+
+    <div id="waf-rules" style="opacity:{{if .WAF.Enabled}}1{{else}}0.4{{end}}">
+
+      <!-- Rules -->
+      <div class="card mb-4">
+        <div class="card-title">Schutzregeln</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+
+          <div class="rule-card {{if .WAF.BlockSQLi}}rule-active{{end}}">
+            <div class="form-check">
+              <input type="checkbox" id="sqli" name="BlockSQLi" {{if .WAF.BlockSQLi}}checked{{end}}>
+              <label for="sqli" style="font-weight:600">SQL Injection</label>
+            </div>
+            <p class="text-muted text-sm">Blockiert UNION SELECT, DROP TABLE, OR 1=1 und ähnliche SQL-Patterns in URL und Body.</p>
+          </div>
+
+          <div class="rule-card {{if .WAF.BlockXSS}}rule-active{{end}}">
+            <div class="form-check">
+              <input type="checkbox" id="xss" name="BlockXSS" {{if .WAF.BlockXSS}}checked{{end}}>
+              <label for="xss" style="font-weight:600">Cross-Site Scripting (XSS)</label>
+            </div>
+            <p class="text-muted text-sm">Blockiert &lt;script&gt;, javascript:, Event-Handler (onerror=, onload=) und ähnliche XSS-Patterns.</p>
+          </div>
+
+          <div class="rule-card {{if .WAF.BlockPathTraversal}}rule-active{{end}}">
+            <div class="form-check">
+              <input type="checkbox" id="pathtrav" name="BlockPathTraversal" {{if .WAF.BlockPathTraversal}}checked{{end}}>
+              <label for="pathtrav" style="font-weight:600">Path Traversal</label>
+            </div>
+            <p class="text-muted text-sm">Blockiert ../, ..\, %2e%2e%2f und Zugriffe auf /etc/passwd, /proc/self etc.</p>
+          </div>
+
+          <div class="rule-card {{if .WAF.BlockCommandInj}}rule-active{{end}}">
+            <div class="form-check">
+              <input type="checkbox" id="cmdinj" name="BlockCommandInj" {{if .WAF.BlockCommandInj}}checked{{end}}>
+              <label for="cmdinj" style="font-weight:600">Command Injection</label>
+            </div>
+            <p class="text-muted text-sm">Blockiert Shell-Metacharaktere wie ; ls, | cat, backticks und $() Subshells.</p>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Body size limit -->
+      <div class="card mb-4">
+        <div class="card-title">Request Body</div>
+        <div class="form-check mb-2">
+          <input type="checkbox" id="largebodychk" name="BlockLargeBody" {{if .WAF.BlockLargeBody}}checked{{end}}
+            onchange="document.getElementById('maxbody-field').style.display=this.checked?'block':'none'">
+          <label for="largebodychk">Große Request-Bodies blockieren</label>
+        </div>
+        <div id="maxbody-field" style="display:{{if .WAF.BlockLargeBody}}block{{else}}none{{end}}">
+          <div class="form-group" style="max-width:200px">
+            <label>Max. Body-Größe (KB)</label>
+            <input type="number" name="MaxBodyKB" class="form-control"
+              value="{{if gt .WAF.MaxBodyKB 0}}{{.WAF.MaxBodyKB}}{{else}}512{{end}}"
+              min="1" max="102400">
+          </div>
+        </div>
+        <p class="text-muted text-sm" style="margin-top:6px">
+          SQL/XSS/CMDInj Checks werden nur auf Bodies bis zur konfigurierten Größe angewendet (Standard: 512 KB).
+        </p>
+      </div>
+
+    </div>
+
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <button type="button" class="btn btn-secondary"
+        hx-get="/admin/htmx/endpoint/cancel"
+        hx-target="#editor"
+        hx-swap="innerHTML">Abbrechen</button>
+    </div>
+  </form>
+</div>
+
+<style>
+  .rule-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--card); transition: border-color .15s, background .15s; }
+  .rule-card.rule-active { border-color: var(--accent); background: #eff6ff; }
+  .rule-card p { margin-top: 4px; margin-left: 24px; }
+</style>
+{{end}}

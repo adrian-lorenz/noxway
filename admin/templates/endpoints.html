@@ -1,0 +1,137 @@
+{{define "page_title"}}Endpoints{{end}}
+{{define "gateway_name"}}{{end}}
+
+{{define "content"}}
+<div class="flex items-center justify-between mb-6">
+  <h2 style="font-size:16px;font-weight:600">Services &amp; Endpoints</h2>
+  <div class="flex gap-2">
+    <button class="btn btn-secondary btn-sm"
+      hx-get="/admin/reload"
+      hx-target="#toast-area"
+      hx-swap="innerHTML">
+      ↺ Reload Gateway
+    </button>
+    <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-service-form').style.display='block'">
+      + Add Service
+    </button>
+  </div>
+</div>
+
+<!-- Add service form -->
+<div id="add-service-form" class="card mb-6" style="display:none">
+  <div class="card-title">New Service</div>
+  <form class="flex gap-2 items-center"
+    hx-post="/admin/htmx/service/add"
+    hx-target="#toast-area"
+    hx-swap="innerHTML"
+    hx-on::after-request="this.reset();document.getElementById('add-service-form').style.display='none'">
+    <input type="text" name="name" placeholder="Service name (e.g. myapi)" class="form-control" style="max-width:280px" required>
+    <button type="submit" class="btn btn-primary btn-sm">Create</button>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('add-service-form').style.display='none'">Cancel</button>
+  </form>
+</div>
+
+<!-- Services table, refreshed via HTMX -->
+<div id="endpoints-table-wrap"
+  hx-get="/admin/htmx/endpoints-table"
+  hx-trigger="refreshEndpoints from:body"
+  hx-swap="innerHTML">
+  {{template "endpoints_table" .}}
+</div>
+
+<!-- Endpoint Editor (inline) -->
+<div id="editor" class="mt-4"></div>
+{{end}}
+
+{{define "endpoints_table"}}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Route</th>
+        <th>Endpoint URL</th>
+        <th>Active</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Services}}
+      {{$svc := .}}
+      <tr style="background:#f8fafc">
+        <td><span class="badge badge-blue">Basic</span></td>
+        <td style="font-weight:600">{{.Name}}</td>
+        <td class="font-mono text-sm">{{.BasicEndpoint.Endpoint}}</td>
+        <td>
+          {{if .Active}}<span class="badge badge-green">Active</span>
+          {{else}}<span class="badge badge-gray">Inactive</span>{{end}}
+        </td>
+        <td>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary btn-sm"
+              hx-get="/admin/htmx/endpoint/edit/{{.UUID}}/{{.BasicEndpoint.UUID}}"
+              hx-target="#editor"
+              hx-swap="innerHTML">
+              Edit
+            </button>
+            <button class="btn btn-secondary btn-sm {{if .WAF.Enabled}}waf-on{{end}}"
+              hx-get="/admin/htmx/waf/edit/{{.UUID}}"
+              hx-target="#editor"
+              hx-swap="innerHTML"
+              title="Web Application Firewall">
+              {{if .WAF.Enabled}}🛡 WAF{{else}}WAF{{end}}
+            </button>
+            <button class="btn btn-primary btn-sm"
+              hx-post="/admin/htmx/endpoint/add/{{.UUID}}"
+              hx-vals='{"name":"sub"}'
+              hx-target="#toast-area"
+              hx-swap="innerHTML"
+              hx-confirm="Add sub-endpoint to {{.Name}}?">
+              + Sub
+            </button>
+            <button class="btn btn-danger btn-sm"
+              hx-delete="/admin/htmx/service/{{.UUID}}"
+              hx-target="#toast-area"
+              hx-swap="innerHTML"
+              hx-confirm="Delete service {{.Name}} and all its endpoints?">
+              Delete
+            </button>
+          </div>
+        </td>
+      </tr>
+      {{range .Endpoints}}
+      <tr>
+        <td style="padding-left:28px"><span class="badge badge-gray">Sub</span></td>
+        <td class="text-muted text-sm">{{$svc.Name}} → {{.Name}}</td>
+        <td class="font-mono text-sm">{{.Endpoint}}</td>
+        <td>
+          {{if .Active}}<span class="badge badge-green">Active</span>
+          {{else}}<span class="badge badge-gray">Inactive</span>{{end}}
+        </td>
+        <td>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary btn-sm"
+              hx-get="/admin/htmx/endpoint/edit/{{$svc.UUID}}/{{.UUID}}"
+              hx-target="#editor"
+              hx-swap="innerHTML">
+              Edit
+            </button>
+            <button class="btn btn-danger btn-sm"
+              hx-delete="/admin/htmx/endpoint/{{$svc.UUID}}/{{.UUID}}"
+              hx-target="#toast-area"
+              hx-swap="innerHTML"
+              hx-confirm="Delete endpoint {{.Name}}?">
+              Delete
+            </button>
+          </div>
+        </td>
+      </tr>
+      {{end}}
+      {{end}}
+      {{if not .Services}}
+      <tr><td colspan="5" class="text-muted text-sm" style="padding:20px;text-align:center">No services configured. Click "+ Add Service" to create one.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}

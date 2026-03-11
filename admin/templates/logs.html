@@ -1,0 +1,52 @@
+{{define "page_title"}}Logs{{end}}
+{{define "gateway_name"}}{{end}}
+
+{{define "content"}}
+<div class="flex items-center justify-between mb-6">
+  <div class="flex items-center gap-2">
+    <label class="text-muted text-sm">Zeitraum:</label>
+    <select id="span-select" name="span" class="form-control" style="width:auto;padding:5px 10px"
+      hx-get="/admin/htmx/logs"
+      hx-target="#log-table-body"
+      hx-swap="innerHTML"
+      hx-trigger="change"
+      hx-include="#span-select">
+      <option value="hour" {{if eq .Span "hour"}}selected{{end}}>Letzte Stunde</option>
+      <option value="day" {{if eq .Span "day"}}selected{{end}}>Letzter Tag</option>
+      <option value="all" {{if eq .Span "all"}}selected{{end}}>Alle (max 500)</option>
+    </select>
+  </div>
+  <button class="btn btn-secondary btn-sm"
+    hx-get="/admin/htmx/logs"
+    hx-target="#log-table-body"
+    hx-swap="innerHTML"
+    hx-include="#span-select">
+    ↺ Refresh
+  </button>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Zeit</th>
+        <th>IP</th>
+        <th>Service</th>
+        <th>Method</th>
+        <th>Status</th>
+        <th>TimePre (ms)</th>
+        <th>TimeFull (ms)</th>
+        <th>Size (KB)</th>
+        <th>Routed</th>
+        <th>Message</th>
+      </tr>
+    </thead>
+    <tbody id="log-table-body"
+      hx-get="/admin/htmx/logs?span=hour"
+      hx-trigger="load"
+      hx-swap="innerHTML">
+      <tr><td colspan="10" class="text-muted text-sm" style="padding:20px">Loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+{{end}}

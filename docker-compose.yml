@@ -1,37 +1,37 @@
-version: '3.8'
-
 services:
-  app:
-    image: 'noxway/noxway:latest'
+
+  noxway:
+    build: .
+    # image: noxway/noxway:latest   # use this instead of build: for pre-built image
     ports:
-      - "8080:8080"
-      - "443:443"
-      - "80:80"
+      - "8080:8080"   # HTTP / Admin panel
+      - "443:443"     # HTTPS (when SSL is enabled in gateway settings)
     volumes:
-      - ./noxway/certs:/app/certs
-      - ./noxway/config:/app/config
-      - ./noxway/log:/app/log
+      - ./certs:/app/certs   # TLS certificates (Let's Encrypt or custom)
+      - ./log:/app/log       # Access logs (when export log is enabled)
+    env_file:
+      - .env
     environment:
-      JWTSECRET: "change_me_please"
-      DATABASE: "noxway:${NOXWAY_DB_PASSWORD}@tcp(db:3306)/noxway?charset=utf8&parseTime=True&loc=Local"
+      DATABASE: "postgres://noxway:${POSTGRES_PASSWORD}@db:5432/noxway?sslmode=disable"
     restart: unless-stopped
     depends_on:
-      - db
-   
+      db:
+        condition: service_healthy
 
   db:
-    image: mariadb:latest
+    image: postgres:16-alpine
     environment:
-      MYSQL_ROOT_PASSWORD: change_me_please
-      MYSQL_DATABASE: noxway
-      MYSQL_USER: noxway
-      MYSQL_PASSWORD: "${NOXWAY_DB_PASSWORD}"
+      POSTGRES_DB:       noxway
+      POSTGRES_USER:     noxway
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
     volumes:
-      - ./noxway/db_data:/var/lib/mysql
-      - ./initdb:/docker-entrypoint-initdb.d
+      - db_data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noxway -d noxway"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   db_data:
-
-

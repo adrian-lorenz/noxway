@@ -1,0 +1,185 @@
+{{define "endpoint_edit"}}
+<div class="card" style="border:2px solid var(--accent)">
+  <div class="flex items-center justify-between mb-4">
+    <h3 style="font-size:15px;font-weight:600">
+      Edit: {{.Endpoint.Name}}
+      {{if .IsBasic}}<span class="badge badge-blue" style="margin-left:6px">Basic</span>
+      {{else}}<span class="badge badge-gray" style="margin-left:6px">Sub</span>{{end}}
+    </h3>
+    <button class="btn btn-secondary btn-sm"
+      hx-get="/admin/htmx/endpoint/cancel"
+      hx-target="#editor"
+      hx-swap="innerHTML">✕ Schließen</button>
+  </div>
+
+  <form hx-post="/admin/htmx/endpoint/save"
+        hx-target="#editor"
+        hx-swap="innerHTML">
+    <input type="hidden" name="UUID" value="{{.Endpoint.UUID}}">
+    <input type="hidden" name="ServiceUUID" value="{{.ServiceUUID}}">
+    <input type="hidden" name="IsBasic" value="{{.IsBasic}}">
+
+    <div class="form-row mb-4">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="Name" class="form-control" value="{{.Endpoint.Name}}" required>
+      </div>
+      <div class="form-group">
+        <label>Endpoint URL</label>
+        <input type="text" name="Endpoint" class="form-control" value="{{.Endpoint.Endpoint}}" required>
+      </div>
+    </div>
+
+    <div class="form-row mb-4">
+      <div class="form-group">
+        <label>Override Timeout (s, 0 = default 5s)</label>
+        <input type="number" name="OverrideTimeout" class="form-control" value="{{.Endpoint.OverrideTimeout}}" min="0">
+      </div>
+      <div class="form-group" style="display:flex;flex-direction:column;justify-content:flex-end;gap:8px">
+        <div class="form-check">
+          <input type="checkbox" id="ep-active" name="Active" {{if .Endpoint.Active}}checked{{end}}>
+          <label for="ep-active">Active</label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="ep-ssl" name="VerifySSL" {{if .Endpoint.VerifySSL}}checked{{end}}>
+          <label for="ep-ssl">Verify SSL</label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="ep-ws" name="WebSocket" {{if .Endpoint.WebSocket}}checked{{end}}>
+          <label for="ep-ws">WebSocket Proxy</label>
+        </div>
+      </div>
+    </div>
+
+    {{if not .IsBasic}}
+    <div class="mb-4">
+      {{template "kv_editor" dict "Title" "Header Route Matches" "Desc" "Requests mit diesen Headern werden zu diesem Endpoint geroutet" "HKey" "HRM_Header" "VKey" "HRM_Value" "KLabel" "Header" "VLabel" "Value" "Rows" .Endpoint.HeaderRouteMatches}}
+    </div>
+    {{end}}
+
+    <div class="mb-4">
+      {{template "kv_editor" dict "Title" "Header hinzufügen" "Desc" "Diese Header werden dem Request hinzugefügt" "HKey" "HA_Header" "VKey" "HA_Value" "KLabel" "Header" "VLabel" "Value" "Rows" .Endpoint.HeaderAdd}}
+    </div>
+
+    <div class="mb-4">
+      {{template "kv_editor" dict "Title" "Header muss existieren" "Desc" "Request wird abgelehnt wenn diese Header fehlen" "HKey" "HEX_Header" "VKey" "HEX_Value" "KLabel" "Header" "VLabel" "Value" "Rows" .Endpoint.HeaderExists}}
+    </div>
+
+    <div class="mb-4">
+      {{template "hreplace_editor" .Endpoint.HeaderReplace}}
+    </div>
+
+    <div class="mb-4">
+      {{template "string_list_editor" dict "Title" "IP Whitelist" "Desc" "Nur diese IPs dürfen zugreifen (leer = alle)" "Key" "Whitelist" "Placeholder" "1.2.3.4" "Values" .Endpoint.Whitelist}}
+    </div>
+
+    <!-- CertAuth -->
+    <div class="card mb-4" style="background:#f8fafc">
+      <div class="form-check mb-2">
+        <input type="checkbox" id="ep-certauth" name="CertAuth" {{if .Endpoint.CertAuth}}checked{{end}}
+          onchange="toggle('certauth-fields',this.checked)">
+        <label for="ep-certauth" style="font-weight:600">Client Certificate Auth</label>
+      </div>
+      <div id="certauth-fields" style="display:{{if .Endpoint.CertAuth}}block{{else}}none{{end}}">
+        <div class="form-group">
+          <label>Certificate PEM</label>
+          <textarea name="CertPEM" class="form-control" rows="4">{{.Endpoint.Certs.CertPEM}}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Certificate KEY</label>
+          <textarea name="CertKEY" class="form-control" rows="4">{{.Endpoint.Certs.CertKEY}}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- JWT -->
+    <div class="card mb-4" style="background:#f8fafc">
+      <div class="form-check mb-2">
+        <input type="checkbox" id="ep-jwt" name="JWTPreCheck" {{if .Endpoint.JWTPreCheck}}checked{{end}}
+          onchange="toggle('jwt-fields',this.checked)">
+        <label for="ep-jwt" style="font-weight:600">JWT Pre-Check</label>
+      </div>
+      <div id="jwt-fields" style="display:{{if .Endpoint.JWTPreCheck}}block{{else}}none{{end}}">
+        <div class="form-row mb-2">
+          <div class="form-group">
+            <label>Header Key</label>
+            <input type="text" name="JWTHeader" class="form-control" value="{{.Endpoint.JWTData.Header}}" placeholder="Authorization">
+          </div>
+          <div class="form-group">
+            <label>Sign Key</label>
+            <input type="text" name="JWTKey" class="form-control" value="{{.Endpoint.JWTData.Key}}">
+          </div>
+        </div>
+        <div class="form-check mb-2">
+          <input type="checkbox" id="ep-onlysign" name="JWTOnlySign" {{if .Endpoint.JWTData.OnlySign}}checked{{end}}
+            onchange="toggle('jwt-field-check',!this.checked)">
+          <label for="ep-onlysign">Nur Signatur prüfen (kein Feld-Check)</label>
+        </div>
+        <div id="jwt-field-check" style="display:{{if .Endpoint.JWTData.OnlySign}}none{{else}}block{{end}}">
+          <div class="form-group mb-2">
+            <label>JWT Feld</label>
+            <input type="text" name="JWTField" class="form-control" value="{{.Endpoint.JWTData.Field}}" placeholder="role">
+          </div>
+          <div class="mb-2">
+            {{template "string_list_editor" dict "Title" "Erlaubte Feldwerte" "Desc" "JWT wird abgelehnt wenn Feld keinen dieser Werte hat" "Key" "JWTMatch" "Placeholder" "admin" "Values" .Endpoint.JWTData.Match}}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <button type="button" class="btn btn-secondary"
+        hx-get="/admin/htmx/endpoint/cancel"
+        hx-target="#editor"
+        hx-swap="innerHTML">Abbrechen</button>
+    </div>
+  </form>
+</div>
+
+<style>
+  .list-editor { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .list-editor-header { padding: 8px 12px; background: #f8fafc; border-bottom: 1px solid var(--border); }
+  .list-editor-title { font-size: 12px; font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: .4px; display: block; }
+  .list-editor-desc { font-size: 11px; color: var(--text-muted); }
+  .list-table { width: 100%; border-collapse: collapse; }
+  .list-table th { font-size: 11px; color: var(--text-muted); font-weight: 600; padding: 6px 10px; text-transform: uppercase; background: #fafbfc; border-bottom: 1px solid var(--border); }
+  .list-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+  .list-table tbody tr:last-child td { border-bottom: none; }
+  .list-table tbody:empty::after { content: 'Keine Einträge'; display: table-cell; padding: 10px; color: var(--text-muted); font-size: 12px; font-style: italic; }
+  .form-control-sm { padding: 5px 8px; font-size: 12px; }
+  .mt-1 { margin: 6px 10px 8px; }
+</style>
+
+<script>
+function removeRow(btn) { btn.closest('tr').remove(); }
+function toggle(id, show) { document.getElementById(id).style.display = show ? 'block' : 'none'; }
+function addStringRow(tableId, inputName, placeholder) {
+  const tbody = document.querySelector('#' + tableId + ' tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><input type="text" name="${inputName}" class="form-control form-control-sm" placeholder="${placeholder}"></td>`
+              + `<td><button type="button" class="btn btn-danger btn-icon btn-sm" onclick="removeRow(this)">✕</button></td>`;
+  tbody.appendChild(tr);
+  tr.querySelector('input').focus();
+}
+function addKVRow(tableId, hName, vName) {
+  const tbody = document.querySelector('#' + tableId + ' tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><input type="text" name="${hName}" class="form-control form-control-sm" placeholder="Header-Name"></td>`
+              + `<td><input type="text" name="${vName}" class="form-control form-control-sm" placeholder="Wert"></td>`
+              + `<td><button type="button" class="btn btn-danger btn-icon btn-sm" onclick="removeRow(this)">✕</button></td>`;
+  tbody.appendChild(tr);
+  tr.querySelector('input').focus();
+}
+function addHRRow(tableId) {
+  const tbody = document.querySelector('#' + tableId + ' tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><input type="text" name="HR_Header[]" class="form-control form-control-sm" placeholder="Header-Name"></td>`
+              + `<td><input type="text" name="HR_Value[]" class="form-control form-control-sm" placeholder="Alter Wert"></td>`
+              + `<td><input type="text" name="HR_NewValue[]" class="form-control form-control-sm" placeholder="Neuer Wert"></td>`
+              + `<td><button type="button" class="btn btn-danger btn-icon btn-sm" onclick="removeRow(this)">✕</button></td>`;
+  tbody.appendChild(tr);
+  tr.querySelector('input').focus();
+}
+</script>
+{{end}}

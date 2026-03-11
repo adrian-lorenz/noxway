@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@latest
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: |
+          gotestsum \
+            --format github-actions \
+            --junitfile test-results.xml \
+            -- -race -coverprofile=coverage.out ./...
+
+      - name: Coverage summary
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}')
+          echo "## Test Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Total coverage | **${COVERAGE}** |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results.xml
+            coverage.out
+
+  leakguard:
+    name: LeakGuard
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install leakguard
+        run: |
+          curl -sSfL \
+            https://github.com/adrian-lorenz/leakguard/releases/latest/download/leakguard-linux-amd64 \
+            -o /usr/local/bin/leakguard
+          chmod +x /usr/local/bin/leakguard
+
+      - name: Scan for secrets
+        run: |
+          echo "## LeakGuard Secret Scan" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          leakguard check --config leakguard.toml --format markdown >> "$GITHUB_STEP_SUMMARY"

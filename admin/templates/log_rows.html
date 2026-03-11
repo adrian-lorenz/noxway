@@ -1,0 +1,30 @@
+{{define "log_rows"}}
+{{if not .}}
+<tr><td colspan="10" class="text-muted text-sm" style="padding:20px">No logs found</td></tr>
+{{else}}
+{{range .}}
+<tr>
+  <td class="font-mono text-sm" style="white-space:nowrap">{{fmtTime .Created}}</td>
+  <td class="font-mono text-sm">{{.IP}}</td>
+  <td><span class="badge badge-blue">{{.Service}}</span></td>
+  <td><span class="badge badge-gray">{{.Method}}</span></td>
+  <td>
+    {{if ge .StatusCode 500}}<span class="badge badge-red">{{.StatusCode}}</span>
+    {{else if ge .StatusCode 400}}<span class="badge badge-red">{{.StatusCode}}</span>
+    {{else if ge .StatusCode 200}}<span class="badge badge-green">{{.StatusCode}}</span>
+    {{else}}<span class="badge badge-gray">{{.StatusCode}}</span>
+    {{end}}
+  </td>
+  <td class="font-mono text-sm">{{fmtMs .TimePre}}</td>
+  <td class="font-mono text-sm">{{fmtMs .TimeFull}}</td>
+  <td class="font-mono text-sm">{{.RequestSize}}</td>
+  <td>
+    {{if .Routed}}<span class="badge badge-green">✓</span>
+    {{else}}<span class="badge badge-red">✗</span>
+    {{end}}
+  </td>
+  <td class="text-sm text-muted">{{.Message}}</td>
+</tr>
+{{end}}
+{{end}}
+{{end}}

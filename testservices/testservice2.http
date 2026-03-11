@@ -1,0 +1,81 @@
+### Noxway — Testservice 2
+### Testservice2 ist ein Load-Balance-Endpoint von Testservice1.
+### Es wird nur geroutet wenn der Header "system: dev" gesetzt ist.
+
+@base = http://127.0.0.1:8080
+@prefix = {{base}}/v1
+
+# ── Direct backend call ───────────────────────────────────────────────────────
+
+### Direct — GET /testservice2
+GET {{base}}/testservice2
+
+###
+
+# ── Via Gateway — Header-Routing ──────────────────────────────────────────────
+
+### Gateway — ohne "system: dev" → landet auf testservice1 (BasicEndpoint)
+GET {{prefix}}/testservice1
+
+###
+
+### Gateway — mit "system: dev" → wird auf testservice2 geroutet
+GET {{prefix}}/testservice1
+system: dev
+
+###
+
+### Gateway — mit Authorization + Header-Routing
+GET {{prefix}}/testservice1
+system: dev
+Authorization: Bearer <your-token-here>
+
+###
+
+# ── POST requests ─────────────────────────────────────────────────────────────
+
+### Gateway — POST (Header-Routing)
+POST {{prefix}}/testservice1
+Content-Type: application/json
+system: dev
+
+{
+  "key": "value",
+  "test": true
+}
+
+###
+
+### Gateway — POST ohne Routing-Header (geht auf BasicEndpoint)
+POST {{prefix}}/testservice1
+Content-Type: application/json
+
+{
+  "key": "value"
+}
+
+###
+
+# ── WAF probes auf testservice2-Route ────────────────────────────────────────
+
+### WAF — SQLi im Body (sollte 403 zurückgeben)
+POST {{prefix}}/testservice1
+Content-Type: application/json
+system: dev
+
+{
+  "query": "1' OR '1'='1"
+}
+
+###
+
+### WAF — XSS im Body
+POST {{prefix}}/testservice1
+Content-Type: application/json
+system: dev
+
+{
+  "comment": "<script>alert(document.cookie)</script>"
+}
+
+###

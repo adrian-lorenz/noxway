@@ -2,10 +2,8 @@ package middleware
 
 import (
 	"net"
-	"strings"
 
 	"github.com/adrian-lorenz/noxway/global"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,25 +23,27 @@ func BannList() gin.HandlerFunc {
 	}
 }
 
+// GetIP returns the real client IP, respecting Gin's trusted proxy configuration.
+// To enable X-Forwarded-For trust, call router.SetTrustedProxies() with your proxy CIDRs.
 func GetIP(c *gin.Context) string {
-	i1 := c.Request.Header.Get("X-Forwarded-For")
-	i2 := c.Request.RemoteAddr
-	ip := i1
-	if ip == "" {
-		ip = i2
-	}
-	host, _, err := net.SplitHostPort(ip)
-	if err != nil {
-		return ip
-	}
-	return host
+	return c.ClientIP()
 }
 
-// isBanned checks if the IP matches any entry in the ban list using linear search
+// isBanned checks if the IP matches any ban list entry.
+// Entries may be exact IPs or CIDR ranges (e.g. "192.168.1.0/24").
 func isBanned(bannList []string, ip string) bool {
-	for _, banned := range bannList {
-		if strings.Contains(ip, banned) || strings.Contains(banned, ip) {
-			return true
+	parsed := net.ParseIP(ip)
+	for _, entry := range bannList {
+		if _, network, err := net.ParseCIDR(entry); err == nil {
+			// CIDR range match
+			if parsed != nil && network.Contains(parsed) {
+				return true
+			}
+		} else {
+			// Exact IP match only
+			if entry == ip {
+				return true
+			}
 		}
 	}
 	return false

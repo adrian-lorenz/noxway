@@ -3,6 +3,8 @@ package pservice
 import (
 	"encoding/json"
 	"os"
+
+	"github.com/adrian-lorenz/noxway/waf"
 )
 
 type Services struct {
@@ -14,26 +16,27 @@ type Service struct {
 	BasicEndpoint Endpoint
 	Active        bool
 	Name          string
-	UUID 		string
-	
+	UUID          string
+	WAF           waf.WAFConfig `json:"waf"`
 }
 
 type Endpoint struct {
-	Endpoint      string
-	VerifySSL     bool
-	CertAuth    bool
-	Certs		 Certs
-	Active        bool
-	Name          string
-	UUID 		string
-	OverrideTimeout 	 int
+	Endpoint           string
+	VerifySSL          bool
+	CertAuth           bool
+	Certs              Certs
+	Active             bool
+	Name               string
+	UUID               string
+	OverrideTimeout    int
+	WebSocket          bool             `json:"webSocket"`
 	HeaderRouteMatches []Header
-	HeaderExists  []Header
-	HeaderAdd []Header
-	Whitelist    []string
-	JWTPreCheck	bool
-	JWTData   JWTPreCheck
-	HeaderReplace []HeaderReplace
+	HeaderExists       []Header
+	HeaderAdd          []Header
+	Whitelist          []string
+	JWTPreCheck        bool
+	JWTData            JWTPreCheck
+	HeaderReplace      []HeaderReplace
 }
 
 type JWTPreCheck struct {
