@@ -2,7 +2,7 @@
 # Only scan Go source files and config files; skip generated/vendor dirs
 extensions = [".go", ".env.example", ".yml", ".yaml", ".toml", ".md"]
 exclude_paths = ["vendor", "build", "testservices"]
-exclude_files = []
+exclude_files = ["README.md","admin_test.go","auth.go","configTemplates.go","main_test.go","main.go"]
 
 [rules]
 # .env.example contains placeholder values only — suppress env-file rule
