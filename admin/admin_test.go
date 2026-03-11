@@ -87,8 +87,13 @@ func TestValidateToken_AlgNoneAttack(t *testing.T) {
 
 func TestValidateToken_TamperedSignature(t *testing.T) {
 	tok := makeToken("admin", time.Now().Add(1*time.Hour))
-	// Flip the last character of the signature
-	tampered := tok[:len(tok)-1] + "X"
+	// Replace the last character with a different one to ensure the signature is actually changed.
+	last := tok[len(tok)-1]
+	replacement := byte('X')
+	if last == 'X' {
+		replacement = 'Y'
+	}
+	tampered := tok[:len(tok)-1] + string(replacement)
 	if validateToken(tampered) {
 		t.Error("token with tampered signature must be rejected")
 	}

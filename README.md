@@ -1,5 +1,13 @@
 # Noxway
 
+![Docker](https://github.com/adrian-lorenz/noxway/actions/workflows/docker.yml/badge.svg)
+![Tests](https://github.com/adrian-lorenz/noxway/actions/workflows/ci.yml/badge.svg?event=push&label=tests)
+![LeakGuard](https://github.com/adrian-lorenz/noxway/actions/workflows/ci.yml/badge.svg?job=leakguard)
+![Docker Pulls](https://img.shields.io/docker/pulls/noxway/noxway)
+![Docker Image Version](https://img.shields.io/docker/v/noxway/noxway/latest)
+![Go Version](https://img.shields.io/github/go-mod/go-version/adrian-lorenz/noxway)
+![License](https://img.shields.io/github/license/adrian-lorenz/noxway)
+
 ![img_3.png](img_3.png)
 A lightweight, self-contained API gateway written in Go.
 All configuration is managed through a built-in web admin panel — no config files, no external dashboards.
