@@ -51,24 +51,3 @@ jobs:
             test-results.xml
             coverage.out
 
-  leakguard:
-    name: LeakGuard
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Install leakguard
-        run: |
-          curl -sSfL \
-            https://github.com/adrian-lorenz/leakguard/releases/latest/download/leakguard-linux-amd64 \
-            -o /usr/local/bin/leakguard
-          chmod +x /usr/local/bin/leakguard
-
-      - name: Scan for secrets
-        run: |
-          echo "## LeakGuard Secret Scan" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          leakguard check --config leakguard.toml --format markdown >> "$GITHUB_STEP_SUMMARY"

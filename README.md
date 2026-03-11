@@ -1,8 +1,8 @@
 # Noxway
 
 ![Docker](https://github.com/adrian-lorenz/noxway/actions/workflows/docker.yml/badge.svg)
-![Tests](https://github.com/adrian-lorenz/noxway/actions/workflows/ci.yml/badge.svg?event=push&label=tests)
-![LeakGuard](https://github.com/adrian-lorenz/noxway/actions/workflows/ci.yml/badge.svg?job=leakguard)
+![Tests](https://github.com/adrian-lorenz/noxway/actions/workflows/ci.yml/badge.svg)
+![LeakGuard](https://github.com/adrian-lorenz/noxway/actions/workflows/leakguard.yml/badge.svg)
 ![Docker Pulls](https://img.shields.io/docker/pulls/noxway/noxway)
 ![Docker Image Version](https://img.shields.io/docker/v/noxway/noxway/latest)
 ![Go Version](https://img.shields.io/github/go-mod/go-version/adrian-lorenz/noxway)
