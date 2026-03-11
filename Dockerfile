@@ -1,5 +1,8 @@
 ### ─── Build stage ────────────────────────────────────────────────────────────
-FROM golang:1.26.1-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.1-alpine AS builder
+
+ARG TARGETOS=linux
+ARG TARGETARCH
 
 RUN apk add --no-cache git
 
@@ -13,7 +16,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
     -trimpath \
     -ldflags="-s -w" \
     -o noxway .
